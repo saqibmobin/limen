@@ -448,6 +448,58 @@ instances. Records as `R-04`.
 | Event schema evolution | Backward-compatible only; consumers must ignore unknown fields; schema registry with compatibility mode `BACKWARD` | `[T1]` |
 | Internal gRPC | No compatibility guarantee; deployed lockstep | `[T1]` |
 
+### 11.2 Agent-facing contracts (L2.2)
+
+Required whenever a contract's consumer is an autonomous agent rather than a
+human-written client. Three properties become load-bearing, because an agent
+cannot read your documentation at 3 a.m. and cannot infer intent from a bare 400:
+
+| ID | Contract | Consumer class | Schema discovery | Error payload | Correction budget | Tier |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `I-01` | `POST /v1/uploads` | both | OpenAPI at `/v1/openapi.json`, **generated from handlers** | structured (below) | 3 attempts, then fail closed | `[T1]` |
+| `I-04` | `ingest.Worker/Claim` | agent | protobuf reflection → JSON Schema, **generated** | structured | 1 | `[T1]` |
+| `I-05` | `ingest` tool set | agent | MCP tool listing, **hand-maintained** → drifts, `R-14` | prose only → `R-15` | none declared | `[T1]` |
+<!-- example — delete -->
+
+**1. Schema discovery.** How the consumer obtains the contract at runtime, and
+whether it is *generated from the implementation* (cannot drift) or
+*hand-maintained* (will drift). Record which. A hand-maintained schema for an
+agent consumer is a `R-nn`, not a footnote.
+
+**2. Structured error payloads.** Errors must be machine-actionable. Prose-only
+errors force the agent to guess, and it will guess wrong repeatedly:
+
+```json
+{
+  "code": "PART_TOO_LARGE",
+  "path": "parts[2].bytes",
+  "reason": "part exceeds the protocol ceiling",
+  "expected": "<= 25165824",
+  "actual": 41943040,
+  "retryable": false,
+  "retry_after_ms": null
+}
+```
+
+Minimum fields: `code` (stable, enumerable), `path` (which input), `reason`,
+`expected`, `actual`, `retryable`. `expected`/`actual` are what make the error
+correctable rather than merely informative.
+
+**3. Correction budget.** How many correction attempts the contract expects
+before the consumer should stop, and whether failed attempts are idempotent. An
+agent looping on an uncorrectable error is a denial-of-service you built
+yourself — cross-reference the retry-amplification analysis in §14.2.
+
+**Headless credential acquisition.** Agent and CLI consumers cannot complete a
+browser redirect. State how they obtain credentials — RFC 8628 device
+authorization flow, workload identity federation, or issued service credentials —
+and carry the choice into the `TB-n` STRIDE sweep in §13.2, since a long-lived
+agent credential has a different compromise profile (`A-6`) than a user session.
+
+**Rule.** A contract with an autonomous-agent consumer whose errors are
+prose-only, or whose schema is hand-maintained with no drift control, is a
+finding in C6 (`STD-ARCH-HLD-03` §7). Record it as a risk rather than omitting it.
+
 ---
 
 ## 12. Data, state and consistency (L2.4)

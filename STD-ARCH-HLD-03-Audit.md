@@ -344,7 +344,11 @@ profile weight.
 - **S2** (20%): Breaking-change definition is explicit and operational, with a
   deprecation window and mechanism.
 - **S3** (15%): Event/message schema evolution rules stated, including consumer
-  obligations.
+  obligations. Where any consumer is an autonomous agent, the contract declares
+  schema discovery (and whether it is generated or hand-maintained), structured
+  error payloads carrying `expected`/`actual`, and a correction budget. A
+  prose-only error contract for an agent consumer scores 0 — it is not
+  correctable, only readable.
 
 ### C7 — Data, state & consistency
 

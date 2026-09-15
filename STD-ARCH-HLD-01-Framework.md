@@ -207,7 +207,7 @@ container diagram is dishonest:
 | § | Section | Mandatory | Notes |
 | :--- | :--- | :--- | :--- |
 | L2.1 | Component deep-dives (C4 L3) | always | Responsibility, concurrency model, owned state, failure behavior |
-| L2.2 | **Interface & contract catalogue** | always | Every externally-reachable contract, in one table |
+| L2.2 | **Interface & contract catalogue** | always | Every externally-reachable contract, in one table. Contracts with autonomous-agent consumers additionally declare schema discovery, structured error payloads, and a correction budget (`-02` §11.2) |
 | L2.3 | **Compatibility & versioning policy** | always | Breaking-change rules, deprecation window, event schema evolution |
 | L2.4 | **Data, state & consistency semantics** | always | §3.6.1 below — second-biggest v3 gap |
 | L2.5 | **Threat model (STRIDE per trust boundary)** | always | §3.6.2 below |
