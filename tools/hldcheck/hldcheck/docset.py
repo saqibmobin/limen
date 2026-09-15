@@ -39,6 +39,41 @@ MARKER_RE = re.compile(
 )
 ATTR_RE = re.compile(r'(\w+)\s*=\s*"([^"]*)"')
 
+HEADING_RE = re.compile(r"^(#{1,6})\s+(?P<title>.+?)\s*$")
+SECTION_ID_RE = re.compile(r"^(?P<id>L\d\.\d{1,2}(?:\.\d+)?)\b")
+FRAMES_RE = re.compile(r"<!--\s*frames:\s*(?P<ids>[^>]*?)\s*-->")
+TIER_TAG_RE = re.compile(r"\[T([0-3])\]")
+ADR_REF_RE = re.compile(r"\bADR-(\d{1,4})\b")
+QID_RE = re.compile(r"\bQ-\d+\b")
+BULLET_RE = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+\S")
+TABLE_ROW_RE = re.compile(r"^\s*\|.*\|\s*$")
+TABLE_SEP_RE = re.compile(r"^\s*\|[\s:|-]+\|\s*$")
+POINTER_BARE_RE = re.compile(r"[^\s`]+@[0-9a-fA-F]{7,40}(?:::[^\s`]+)?")
+
+# Quantities that make a sentence a factual claim about the system.
+QUANTITY_RE = re.compile(
+    r"\b\d[\d,.]*\s*(?:ms|µs|us|ns|s|sec|secs|seconds|m|min|mins|h|hr|hrs|d|days|"
+    r"B|KB|KiB|MB|MiB|GB|GiB|TB|TiB|QPS|qps|RPS|rps|TPS|tps|%|rows|bytes|"
+    r"connections|threads|workers|replicas|instances)\b"
+)
+
+OWNER_RE = re.compile(r"(?:@[\w][\w.-]*|\bowner\s*[:=]\s*\S+)", re.I)
+TRIGGER_RE = re.compile(
+    r"\b(?:trigger|triggered|revisit|re-?open|when\b|once\b|if\b|upon\b|"
+    r"threshold|expires?|deadline)\b", re.I
+)
+FUTURE_RE = re.compile(
+    r"\b(?:proposed|proposal|will|would|shall|should|plan(?:ned|s)?|target|"
+    r"intend(?:ed|s)?|plan to|plan for|future|plan\b)\b", re.I
+)
+PRESENT_CLAIM_RE = re.compile(
+    r"\bthe\s+(?:system|service|platform|api|gateway|worker|pipeline|component)\s+"
+    r"(?!will|would|shall|should|must|may|can|might|is\s+expected|is\s+proposed)"
+    r"(?:currently\s+)?[a-z]+s\b"
+)
+ASIS_RE = re.compile(r"\[AS-IS\]", re.I)
+TOBE_RE = re.compile(r"\[TO-BE\]", re.I)
+
 ID_PATTERNS = {
     "quality_scenarios": re.compile(r"\bQA-\d+\b"),
     "concerns": re.compile(r"\bC-\d+\b"),
@@ -55,10 +90,32 @@ class MdFile:
     path: Path
     rel: str
     text: str
+    _lines: list[str] | None = None
+    _fenced: set[int] | None = None
 
     @property
     def lines(self) -> list[str]:
-        return self.text.splitlines()
+        if self._lines is None or "\n".join(self._lines) != self.text.rstrip("\n"):
+            self._lines = self.text.splitlines()
+            self._fenced = None
+        return self._lines
+
+    @property
+    def body_start(self) -> int:
+        """0-based index of the first line after YAML front matter."""
+        lines = self.lines
+        if not lines or lines[0].strip() != "---":
+            return 0
+        for i in range(1, len(lines)):
+            if lines[i].strip() == "---":
+                return i + 1
+        return 0
+
+    def fenced(self, index: int) -> bool:
+        """True if line `index` (0-based) sits inside a fenced code block."""
+        if self._fenced is None:
+            self._fenced = _fenced_indices(self.lines)
+        return index in self._fenced
 
     def line_of(self, offset: int) -> int:
         return self.text.count("\n", 0, offset) + 1
@@ -118,6 +175,59 @@ def normalize_block(content: str) -> str:
     if content.endswith("\n"):
         content = content[:-1]
     return content
+
+
+@dataclass
+class Section:
+    """A heading whose title starts with an `L<level>.<n>` id."""
+
+    id: str
+    title: str
+    file: str
+    line: int
+    frames: list[str] | None      # None = no frames comment; [] = explicit "—"
+    body: str = ""
+
+
+@dataclass
+class Unit:
+    """A reviewable chunk of prose: one bullet, paragraph, or table row."""
+
+    kind: str                     # bullet | paragraph | table-row
+    text: str
+    file: str
+    line: int
+    section: str | None = None
+
+    @property
+    def tiers(self) -> list[str]:
+        return TIER_TAG_RE.findall(self.text)
+
+    @property
+    def has_pointer(self) -> bool:
+        return bool(POINTER_BARE_RE.search(self.text))
+
+
+@dataclass
+class Table:
+    headers: list[str]
+    rows: list[tuple[int, list[str]]]      # (line, cells)
+    file: str
+    line: int
+    section: str | None = None
+
+    def column(self, *names: str) -> int | None:
+        for i, h in enumerate(self.headers):
+            norm = re.sub(r"[^a-z]", "", h.lower())
+            for n in names:
+                if re.sub(r"[^a-z]", "", n.lower()) in norm:
+                    return i
+        return None
+
+    @property
+    def is_normative(self) -> bool:
+        blob = " ".join(c for _, cells in self.rows for c in cells)
+        return bool(TIER_TAG_RE.search(blob) or POINTER_BARE_RE.search(blob))
 
 
 @dataclass
@@ -188,6 +298,143 @@ class DocSet:
             errors.extend(e)
         return blocks, errors
 
+    def sections(self) -> list[Section]:
+        out: list[Section] = []
+        for f in self.files:
+            lines = f.lines
+            for i, line in enumerate(lines):
+                if f.fenced(i):
+                    continue
+                m = HEADING_RE.match(line)
+                if not m:
+                    continue
+                sid = SECTION_ID_RE.match(m.group("title"))
+                if not sid:
+                    continue
+                frames: list[str] | None = None
+                for look in lines[i + 1: i + 5]:
+                    if fm := FRAMES_RE.search(look):
+                        raw = fm.group("ids").strip()
+                        frames = [] if raw in ("—", "-", "", "none") else [
+                            t.strip() for t in re.split(r"[,\s]+", raw) if t.strip()
+                        ]
+                        break
+                    if HEADING_RE.match(look):
+                        break
+                body_end = len(lines)
+                for j in range(i + 1, len(lines)):
+                    if HEADING_RE.match(lines[j]) and not f.fenced(j):
+                        body_end = j
+                        break
+                out.append(Section(
+                    id=sid.group("id"), title=m.group("title"), file=f.rel,
+                    line=i + 1, frames=frames,
+                    body="\n".join(lines[i + 1: body_end]),
+                ))
+        return out
+
+    def units(self) -> list[Unit]:
+        out: list[Unit] = []
+        for f in self.files:
+            lines = f.lines
+            section: str | None = None
+            i = f.body_start
+            while i < len(lines):
+                if f.fenced(i):
+                    i += 1
+                    continue
+                raw = lines[i]
+                stripped = raw.strip()
+
+                if m := HEADING_RE.match(raw):
+                    sid = SECTION_ID_RE.match(m.group("title"))
+                    section = sid.group("id") if sid else section
+                    i += 1
+                    continue
+                if not stripped or stripped.startswith("<!--") or MARKER_RE.match(stripped):
+                    i += 1
+                    continue
+                if TABLE_ROW_RE.match(raw):
+                    if not TABLE_SEP_RE.match(raw):
+                        out.append(Unit("table-row", stripped, f.rel, i + 1, section))
+                    i += 1
+                    continue
+                if BULLET_RE.match(raw):
+                    start, buf = i, [stripped]
+                    i += 1
+                    while (i < len(lines) and lines[i].strip()
+                           and not BULLET_RE.match(lines[i])
+                           and not HEADING_RE.match(lines[i])
+                           and not TABLE_ROW_RE.match(lines[i])
+                           and lines[i].startswith((" ", "\t"))):
+                        buf.append(lines[i].strip())
+                        i += 1
+                    out.append(Unit("bullet", " ".join(buf), f.rel, start + 1, section))
+                    continue
+
+                start, buf = i, []
+                while (i < len(lines) and lines[i].strip()
+                       and not BULLET_RE.match(lines[i])
+                       and not HEADING_RE.match(lines[i])
+                       and not TABLE_ROW_RE.match(lines[i])
+                       and not lines[i].strip().startswith("<!--")
+                       and not f.fenced(i)):
+                    buf.append(lines[i].strip())
+                    i += 1
+                if buf:
+                    out.append(Unit("paragraph", " ".join(buf), f.rel, start + 1, section))
+                else:
+                    i += 1
+        return out
+
+    def tables(self) -> list[Table]:
+        out: list[Table] = []
+        for f in self.files:
+            lines = f.lines
+            section: str | None = None
+            i = f.body_start
+            while i < len(lines):
+                if f.fenced(i):
+                    i += 1
+                    continue
+                if m := HEADING_RE.match(lines[i]):
+                    sid = SECTION_ID_RE.match(m.group("title"))
+                    section = sid.group("id") if sid else section
+                    i += 1
+                    continue
+                if (TABLE_ROW_RE.match(lines[i]) and i + 1 < len(lines)
+                        and TABLE_SEP_RE.match(lines[i + 1])):
+                    headers = _cells(lines[i])
+                    start = i + 1
+                    i += 2
+                    rows: list[tuple[int, list[str]]] = []
+                    while i < len(lines) and TABLE_ROW_RE.match(lines[i]):
+                        rows.append((i + 1, _cells(lines[i])))
+                        i += 1
+                    out.append(Table(headers, rows, f.rel, start, section))
+                    continue
+                i += 1
+        return out
+
+    def adr_refs(self) -> list[tuple[str, str, int]]:
+        """(ADR id, file, line) for every ADR reference outside code fences."""
+        out: list[tuple[str, str, int]] = []
+        for f in self.files:
+            for n, line in enumerate(f.lines, 1):
+                if f.fenced(n - 1):
+                    continue
+                for m in ADR_REF_RE.finditer(line):
+                    out.append((f"ADR-{int(m.group(1)):03d}", f.rel, n))
+        return out
+
+    def diagram_elements(self) -> list[tuple[str, Diagram]]:
+        """Named elements (nodes, participants, subgraphs) per diagram."""
+        out: list[tuple[str, Diagram]] = []
+        for d in self.diagrams():
+            for name in _diagram_names(d.source):
+                out.append((name, d))
+        return out
+
     def id_count(self, kind: str) -> int:
         reg = self.registers.get(kind)
         if isinstance(reg, list):
@@ -207,6 +454,75 @@ class DocSet:
 # --------------------------------------------------------------------------
 # Extraction helpers
 # --------------------------------------------------------------------------
+
+def _fenced_indices(lines: list[str]) -> set[int]:
+    """0-based indices of every line inside (or delimiting) a fenced block."""
+    out: set[int] = set()
+    i = 0
+    while i < len(lines):
+        m = FENCE_RE.match(lines[i])
+        if not m:
+            i += 1
+            continue
+        ticks, indent = m.group("ticks"), m.group("indent")
+        close = re.compile(rf"^{re.escape(indent)}{ticks[0]}{{{len(ticks)},}}\s*$")
+        out.add(i)
+        i += 1
+        while i < len(lines) and not close.match(lines[i]):
+            out.add(i)
+            i += 1
+        if i < len(lines):
+            out.add(i)
+            i += 1
+    return out
+
+
+def _cells(row: str) -> list[str]:
+    parts = row.strip().split("|")
+    if parts and not parts[0].strip():
+        parts = parts[1:]
+    if parts and not parts[-1].strip():
+        parts = parts[:-1]
+    return [p.strip() for p in parts]
+
+
+_NODE_LABEL_RE = re.compile(
+    r"(?<![\w\"])[A-Za-z_]\w*(?:\[\[|\(\(|\[\(|\[|\(|\{\{|\{|>)\s*"
+    r"(?:\"(?P<quoted>[^\"]*)\"|(?P<bare>[^\]\)\}\n\"]+))"
+)
+# `-->|label|` and `-- label -->` annotate edges, not elements.
+_EDGE_LABEL_RE = re.compile(r"\|[^|\n]*\||(?<=-)-\s+[^->\n]+\s+--(?=>)")
+_SUBGRAPH_RE = re.compile(r"^\s*subgraph\s+(?:\w+\s*)?\[?\"?(?P<name>[^\"\]\n]+)\"?\]?")
+_PARTICIPANT_RE = re.compile(
+    r"^\s*(?:participant|actor)\s+\w+\s+as\s+\"?(?P<name>[^\"\n]+?)\"?\s*$"
+)
+_PARTICIPANT_BARE_RE = re.compile(r"^\s*(?:participant|actor)\s+(?P<name>[\w ]+?)\s*$")
+
+
+def _diagram_names(source: str) -> list[str]:
+    """Human-facing element names in a mermaid diagram."""
+    names: list[str] = []
+    for line in source.splitlines():
+        if line.strip().startswith("%%"):
+            continue
+        if m := _SUBGRAPH_RE.match(line):
+            names.append(m.group("name").strip())
+            continue
+        if m := _PARTICIPANT_RE.match(line):
+            names.append(m.group("name").strip())
+            continue
+        if m := _PARTICIPANT_BARE_RE.match(line):
+            names.append(m.group("name").strip())
+            continue
+        for m in _NODE_LABEL_RE.finditer(_EDGE_LABEL_RE.sub(" ", line)):
+            label = (m.group("quoted") or m.group("bare") or "").strip()
+            label = re.sub(r"<br\s*/?>", " ", label)
+            label = re.sub(r"\s+", " ", label).strip()
+            if label and not label.startswith("-"):
+                names.append(label)
+    seen: set[str] = set()
+    return [n for n in names if not (n in seen or seen.add(n))]
+
 
 def _extract_fences(f: MdFile, langs: tuple[str, ...]) -> list[Diagram]:
     out: list[Diagram] = []
@@ -320,7 +636,7 @@ def _extract_blocks(f: MdFile):
 # --------------------------------------------------------------------------
 
 FRONT_RE = re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n", re.S)
-SKIP_DIRS = {"audits", "node_modules", ".git"}
+SKIP_DIRS = {"audits", "adr", "decisions", "node_modules", ".git"}
 
 
 def _yaml_load(text: str, where: str):

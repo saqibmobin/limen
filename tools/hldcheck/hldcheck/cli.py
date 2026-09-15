@@ -13,13 +13,18 @@ import sys
 from pathlib import Path
 
 from . import __version__, docset
-from .gates import g1_provenance, g2_diagrams, g9_frontmatter, g10_blocks
+from .gates import (
+    g1_provenance, g2_diagrams, g3_consistency, g4_concerns, g5_scenarios,
+    g6_tiers, g7_proposals, g8_questions, g9_frontmatter, g10_blocks,
+    g11_mode, g12_adr,
+)
 from .gitio import Git
 from .model import FAIL, SKIP, WARN, CheckError, GateResult
 from .report import render_json, render_sarif, render_text
 
-IMPLEMENTED = ["G1", "G2", "G9", "G10"]
-PLANNED = ["G3", "G4", "G5", "G6", "G7", "G8", "G11", "G12"]
+IMPLEMENTED = ["G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8", "G9", "G10",
+               "G11", "G12"]
+PLANNED: list[str] = []
 
 EXIT_OK, EXIT_GATE_FAILURE, EXIT_ERROR, EXIT_DRIFT = 0, 1, 2, 3
 
@@ -28,8 +33,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="hldcheck",
         description="Validate an HLD document set against STD-ARCH-HLD-03 hard gates.",
-        epilog=f"Implemented gates: {', '.join(IMPLEMENTED)}. "
-               f"Planned: {', '.join(PLANNED)}.",
+        epilog=f"Gates: {', '.join(IMPLEMENTED)}.",
     )
     p.add_argument("--docs", default="docs/architecture", type=Path,
                    help="HLD directory or single markdown file "
@@ -128,8 +132,24 @@ def main(argv: list[str] | None = None) -> int:
         gates.append(g2_diagrams.run(docs, mmdc=args.mmdc, strict=args.strict,
                                      use_cache=not args.no_cache, jobs=args.jobs,
                                      timeout=args.timeout))
+    if "G3" in selected:
+        gates.append(g3_consistency.run(docs, strict=args.strict))
+    if "G4" in selected:
+        gates.append(g4_concerns.run(docs, strict=args.strict))
+    if "G5" in selected:
+        gates.append(g5_scenarios.run(docs, strict=args.strict))
+    if "G6" in selected:
+        gates.append(g6_tiers.run(docs, strict=args.strict))
+    if "G7" in selected:
+        gates.append(g7_proposals.run(docs, strict=args.strict))
+    if "G8" in selected:
+        gates.append(g8_questions.run(docs, strict=args.strict))
     if "G10" in selected:
         gates.append(g10_blocks.run(docs, strict=args.strict))
+    if "G11" in selected:
+        gates.append(g11_mode.run(docs, strict=args.strict))
+    if "G12" in selected:
+        gates.append(g12_adr.run(docs, strict=args.strict))
 
     repo_front = docs.front.get("repo") or {}
     evaluated = None

@@ -7,7 +7,7 @@ Four artifacts. Three documents and a validator.
 | [`STD-ARCH-HLD-01-Framework.md`](STD-ARCH-HLD-01-Framework.md) | 676 | **Process.** Modes, levels L0–L3, gates, evidence tiers, provenance format, discovery protocol, update mode, diagram rules | Authoring agent, every run |
 | [`STD-ARCH-HLD-02-Templates.md`](STD-ARCH-HLD-02-Templates.md) | 808 | **Shapes.** Every section template, register schema, ADR format, required table columns | Authoring agent, one section at a time |
 | [`STD-ARCH-HLD-03-Audit.md`](STD-ARCH-HLD-03-Audit.md) | 541 | **Judgment.** Tailoring profiles, scoring, auditor protocol, hard gates | Auditor agent only |
-| [`tools/hldcheck/`](tools/hldcheck/README.md) | — | **Enforcement.** Validates G1, G2, G9, G10 mechanically | CI, and the agent before presenting |
+| [`tools/hldcheck/`](tools/hldcheck/README.md) | — | **Enforcement.** Validates all twelve hard gates mechanically | CI, and the agent before presenting |
 
 The split is not cosmetic. An agent authoring L2 needs `-01` §3.6 and `-02` §11–14 —
 about 200 lines — not 2,000. And the auditor must **never** load the authoring

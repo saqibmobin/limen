@@ -2,37 +2,33 @@
 """End-to-end tests for hldcheck.
 
 Builds a throwaway git repo and two HLD document sets (one clean, one seeded
-with every failure mode the four implemented gates are meant to catch), runs the
-CLI in-process, and asserts on gate status, item counts and exit codes.
+with a violation of every gate), runs the CLI in-process, and asserts on gate
+status, stats and exit codes.
 
 Run:  python3 tests/run_tests.py [-k pattern] [--keep]
 """
 from __future__ import annotations
 
 import argparse
-import hashlib
 import io
 import json
-import os
 import shutil
-import subprocess
 import sys
 import tempfile
 from contextlib import redirect_stdout
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from hldcheck.cli import main  # noqa: E402
-from hldcheck.docset import normalize_block  # noqa: E402
+from fixtures import build_broken_docs, build_clean_docs, build_repo  # noqa: E402
+from hldcheck.cli import IMPLEMENTED, main  # noqa: E402
 
 FAILURES: list[str] = []
 PASSES = 0
 
+ALL_GATES = ["G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8", "G9", "G10", "G11", "G12"]
 
-# --------------------------------------------------------------------------
-# assertions
-# --------------------------------------------------------------------------
 
 def check(label: str, condition: bool, detail: str = "") -> None:
     global PASSES
@@ -67,271 +63,62 @@ def run_cli(argv: list[str]) -> tuple[int, dict]:
 
 
 # --------------------------------------------------------------------------
-# fixture: git repository
-# --------------------------------------------------------------------------
 
-LIMITS_GO_V1 = """package ingest
+def test_registration(work: Path, repo: Path, baseline: str) -> None:
+    check("registry: all twelve gates are implemented",
+          IMPLEMENTED == ALL_GATES, str(IMPLEMENTED))
+    docs = work / "docs-clean"
+    build_clean_docs(docs, baseline)
+    code, payload = run_cli(["--docs", str(docs), "--repo", str(repo)])
+    ran = [g["id"] for g in payload["gates"]]
+    check("registry: a default run executes all twelve",
+          sorted(ran, key=lambda g: int(g[1:])) == ALL_GATES, str(ran))
+    # G9 parses front matter, which G1 needs for its baseline commit.
+    check("registry: G9 runs before G1", ran.index("G9") < ran.index("G1"), str(ran))
 
-// MaxPartBytes is the protocol ceiling for one multipart chunk.
-const MaxPartBytes = 25165824
-
-const pollTimeoutSeconds = 30
-"""
-
-LIMITS_GO_V2 = LIMITS_GO_V1.replace("25165824", "33554432")
-
-HANDLER_GO = """package ingest
-
-type Handler struct{ repo Repo }
-
-func (h *Handler) Upload(ctx context.Context, r *Request) error {
-\treturn h.repo.Save(ctx, r)
-}
-
-func NewHandler(repo Repo) *Handler { return &Handler{repo: repo} }
-"""
-
-POOL_GO = """package worker
-
-func NewPool(size int) *Pool {
-\treturn &Pool{size: size}
-}
-"""
-
-DEPLOY_YAML = """apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: ingest-api
-spec:
-  template:
-    spec:
-      containers:
-        - name: api
-          resources:
-            limits:
-              memory: 512Mi
-"""
-
-MIGRATION_SQL = """CREATE TABLE uploads (
-  id UUID PRIMARY KEY,
-  tenant_id UUID NOT NULL
-);
-"""
-
-
-def build_repo(root: Path) -> tuple[str, str]:
-    """Create a git repo; return (baseline_sha, later_sha)."""
-    files = {
-        "internal/ingest/limits.go": LIMITS_GO_V1,
-        "internal/ingest/handler.go": HANDLER_GO,
-        "internal/worker/pool.go": POOL_GO,
-        "deploy/k8s/ingest.yaml": DEPLOY_YAML,
-        "db/migrations/0042_add_tenant_id.sql": MIGRATION_SQL,
-    }
-    for rel, body in files.items():
-        path = root / rel
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(body)
-
-    env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.invalid",
-           "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.invalid"}
-
-    def git(*args: str) -> str:
-        return subprocess.run(["git", "-C", str(root), *args], check=True,
-                              capture_output=True, env=env).stdout.decode().strip()
-
-    git("init", "-q", "-b", "main")
-    git("add", "-A")
-    git("commit", "-qm", "baseline")
-    baseline = git("rev-parse", "HEAD")
-
-    # A later commit that changes a quoted literal and moves a symbol.
-    (root / "internal/ingest/limits.go").write_text(LIMITS_GO_V2)
-    (root / "internal/worker/pool.go").write_text("// header added\n\n" + POOL_GO)
-    git("add", "-A")
-    git("commit", "-qm", "raise part ceiling")
-    later = git("rev-parse", "HEAD")
-    return baseline, later
-
-
-# --------------------------------------------------------------------------
-# fixture: HLD document sets
-# --------------------------------------------------------------------------
-
-GOOD_MERMAID = """graph TD
-    A["ingest-api"] -->|"POST /v1/uploads (part)"| B["ingest-worker"]
-    B --> C["object storage"]
-"""
-
-SECOND_MERMAID = """sequenceDiagram
-    autonumber
-    actor Client
-    participant API as "ingest-api"
-    Client->>API: "POST /v1/uploads"
-    API-->>Client: "202 Accepted"
-"""
-
-BAD_MERMAID = """graph TD
-    A[POST /v1/uploads (part)] --> B[worker
-"""
-
-
-def agent_block(bid: str, body: str, tamper: bool = False, hashed: bool = True) -> str:
-    digest = "sha256:" + hashlib.sha256(normalize_block("\n" + body + "\n").encode()).hexdigest()
-    if tamper:
-        digest = "sha256:" + "0" * 64
-    attrs = f'id="{bid}"' + (f' hash="{digest}"' if hashed else "")
-    return f"<!-- agent:begin {attrs} -->\n{body}\n<!-- agent:end id=\"{bid}\" -->"
-
-
-def front_matter(baseline: str, *, version: str = "4.1.0", counts: dict) -> str:
-    return f"""---
-doc: hld
-id: HLD-ingest-platform
-title: Ingest Platform High-Level Design
-version: {version}
-status: draft
-mode: brownfield-asis
-level: 2
-profile: P2-product-service
-ungated: false
-repo:
-  url: https://example.invalid/acme/ingest
-  commit: {baseline}
-  short: {baseline[:7]}
-  dirty: false
-  inspected: full
-authors:
-  - {{ name: architecture-agent, kind: agent }}
-owners:
-  document: platform-team
-  system: ingest-team
-counts:
-  concerns: {counts['concerns']}
-  constraints: {counts['constraints']}
-  quality_scenarios: {counts['quality_scenarios']}
-  open_questions: {counts['open_questions']}
-changelog:
-  - version: {version}
-    date: 2026-09-15
-    trigger: provenance-drift
-    summary: Re-pinned baseline.
----
-"""
-
-
-def build_clean_docs(root: Path, baseline: str) -> None:
-    short = baseline[:7]
-    root.mkdir(parents=True, exist_ok=True)
-
-    body = f"""### L1.4 Quality scenarios
-<!-- frames: C-01, C-02 -->
-
-`QA-01` availability, `QA-02` latency. Constraints `K-01`, `K-02`.
-Open questions: `Q-01`, `Q-02`. Concern `C-03` is framed at L2.5.
-
-Max part size is 24 MiB `[T1]` (`internal/ingest/limits.go@{short}::MaxPartBytes` = 25165824).
-Long-poll timeout is 30 s `[T1]` (`internal/ingest/limits.go@{short}::pollTimeoutSeconds` = 30).
-
-```mermaid
-{GOOD_MERMAID}```
-"""
-
-    (root / "01-intake.md").write_text(
-        front_matter(baseline, counts={"concerns": 3, "constraints": 2,
-                                       "quality_scenarios": 2, "open_questions": 2})
-        + "\n# Ingest Platform HLD\n\n"
-        + agent_block("L1.4", body)
-        + "\n\n<!-- human:begin id=\"L1.4.note\" -->\nReviewer note: sizing re-checked 2026-09-01.\n<!-- human:end id=\"L1.4.note\" -->\n"
-    )
-
-    (root / "02-mechanics.md").write_text(f"""# L2 Mechanics
-
-### L2.1 Components
-<!-- frames: C-01 -->
-
-The upload handler is `internal/ingest/handler.go@{short}::(*Handler).Upload` `[T1]`.
-The worker pool constructor is `internal/worker/pool.go@{short}::NewPool` `[T1]`.
-Container resources: `deploy/k8s/ingest.yaml@{short}::spec.template.spec.containers[0].resources` `[T1]`.
-Schema: `db/migrations/0042_add_tenant_id.sql@{short}::uploads` `[T1]`.
-Migrations directory: `db/migrations/@{short}` `[T1]`.
-
-```mermaid
-{SECOND_MERMAID}```
-""")
-
-
-def build_broken_docs(root: Path, baseline: str) -> None:
-    short = baseline[:7]
-    root.mkdir(parents=True, exist_ok=True)
-
-    # G9: non-semver version, counts that do not match content.
-    fm = front_matter(baseline, version="4.1",
-                      counts={"concerns": 99, "constraints": 2,
-                              "quality_scenarios": 2, "open_questions": 1})
-
-    body = f"""### L1.4 Quality scenarios
-
-`QA-01`, `QA-02`, `K-01`, `K-02`, `C-01`, `Q-01`.
-
-G1 failures below:
-- missing symbol: `internal/ingest/limits.go@{short}::NoSuchConstant` `[T1]`
-- missing path: `internal/nope/gone.go@{short}::Thing` `[T1]`
-- literal mismatch: `internal/ingest/limits.go@{short}::MaxPartBytes` = 999999 `[T1]`
-- mixed baseline: `internal/ingest/handler.go@deadbee::NewHandler` `[T1]`
-- forbidden form: `file:///home/someone/repo/internal/ingest/limits.go#L4`
-
-```mermaid
-{BAD_MERMAID}```
-
-This one is a deliberate example and must be skipped:
-
-<!-- hldcheck:ignore-diagram -->
-
-```mermaid
-{BAD_MERMAID}```
-"""
-
-    (root / "01-intake.md").write_text(
-        fm + "\n# Broken HLD\n\n"
-        + agent_block("L1.4", body, tamper=True)
-        + "\n\n"
-        + agent_block("L2.1", "Unhashed agent block.", hashed=False)
-        + "\n"
-    )
-
-
-# --------------------------------------------------------------------------
-# test cases
-# --------------------------------------------------------------------------
 
 def test_clean(work: Path, repo: Path, baseline: str) -> None:
     docs = work / "docs-clean"
     build_clean_docs(docs, baseline)
     code, payload = run_cli(["--docs", str(docs), "--repo", str(repo)])
 
-    check("clean: exit code 0", code == 0, f"got {code}")
-    for gid in ("G1", "G2", "G9", "G10"):
+    for gid in ALL_GATES:
         g = gate(payload, gid)
-        check(f"clean: {gid} passes", g["status"] == "pass", summaries(g))
+        check(f"clean: {gid} passes", g["status"] == "pass",
+              f"status={g['status']} :: {summaries(g)}")
+    check("clean: exit code 0", code == 0, f"got {code}")
 
-    g1 = gate(payload, "G1")
-    stats = g1.get("stats", {})
+    stats = gate(payload, "G1").get("stats", {})
     check("clean: G1 resolved every pointer",
           stats.get("resolved") == stats.get("total") and stats.get("total", 0) >= 7,
           json.dumps(stats))
-    check("clean: G1 found no value-changed literals",
-          stats.get("value_changed") == 0, json.dumps(stats))
+    check("clean: G3 checked C4 containment",
+          gate(payload, "G3").get("stats", {}).get("containment_checked") is True,
+          json.dumps(gate(payload, "G3").get("stats")))
+    check("clean: G4 framed every concern",
+          gate(payload, "G4").get("stats", {}).get("unframed") == 0,
+          json.dumps(gate(payload, "G4").get("stats")))
+    check("clean: G5 saw 5 complete scenarios",
+          gate(payload, "G5").get("stats", {}).get("scenarios") == 5
+          and gate(payload, "G5").get("stats", {}).get("unquantified") == 0,
+          json.dumps(gate(payload, "G5").get("stats")))
+    check("clean: G8 has a non-empty question register",
+          gate(payload, "G8").get("stats", {}).get("open") == 3,
+          json.dumps(gate(payload, "G8").get("stats")))
+    check("clean: G12 found the ADR and its trade-off row",
+          gate(payload, "G12").get("stats", {}).get("rows_without_adr") == 0
+          and gate(payload, "G12").get("stats", {}).get("adr_files") == 1,
+          json.dumps(gate(payload, "G12").get("stats")))
 
-    g2 = gate(payload, "G2")
-    check("clean: G2 rendered 2 diagrams",
-          g2.get("stats", {}).get("diagrams") == 2, json.dumps(g2.get("stats")))
 
-    g10 = gate(payload, "G10")
-    st = g10.get("stats", {})
-    check("clean: G10 saw 1 agent + 1 human block",
-          st.get("agent") == 1 and st.get("human") == 1 and st.get("mismatched") == 0,
-          json.dumps(st))
+def test_clean_strict(work: Path, repo: Path, baseline: str) -> None:
+    docs = work / "docs-clean"
+    code, payload = run_cli(["--docs", str(docs), "--repo", str(repo), "--strict"])
+    noisy = [f"{g['id']}={g['status']}" for g in payload["gates"] if g["status"] != "pass"]
+    check("clean: survives --strict with no warnings promoted to failures",
+          code == 0 and not noisy,
+          f"exit {code}; " + " ".join(noisy) + " :: " +
+          " || ".join(summaries(g) for g in payload["gates"] if g["status"] != "pass"))
 
 
 def test_broken(work: Path, repo: Path, baseline: str) -> None:
@@ -340,62 +127,90 @@ def test_broken(work: Path, repo: Path, baseline: str) -> None:
     code, payload = run_cli(["--docs", str(docs), "--repo", str(repo)])
 
     check("broken: exit code 1", code == 1, f"got {code}")
+    for gid in ALL_GATES:
+        g = gate(payload, gid)
+        check(f"broken: {gid} fails", g["status"] == "fail",
+              f"status={g['status']} :: {summaries(g)}")
 
-    g9 = gate(payload, "G9")
-    text = summaries(g9)
-    check("broken: G9 fails", g9["status"] == "fail", text)
-    check("broken: G9 flags non-semver version", "not semver" in text, text)
-    check("broken: G9 flags counts mismatch", "counts.concerns" in text, text)
+    t = {gid: summaries(gate(payload, gid)) for gid in ALL_GATES}
 
-    g1 = gate(payload, "G1")
-    text = summaries(g1)
-    check("broken: G1 fails", g1["status"] == "fail", text)
-    check("broken: G1 flags missing symbol", "NoSuchConstant" in text, text)
-    check("broken: G1 flags missing path", "gone.go" in text or "path not found" in text, text)
-    check("broken: G1 flags literal mismatch", "literal mismatch" in text, text)
-    check("broken: G1 flags mixed baseline", "deadbee" in text, text)
-    check("broken: G1 flags file:// pointer", "forbidden pointer form" in text, text)
+    check("broken: G1 flags missing symbol", "NoSuchConstant" in t["G1"], t["G1"])
+    check("broken: G1 flags literal mismatch", "literal mismatch" in t["G1"], t["G1"])
+    check("broken: G1 flags mixed baseline", "deadbee" in t["G1"], t["G1"])
+    check("broken: G1 flags file:// pointer", "forbidden pointer form" in t["G1"], t["G1"])
 
-    g2 = gate(payload, "G2")
-    text = summaries(g2)
-    check("broken: G2 fails", g2["status"] == "fail", text)
-    check("broken: G2 reports exactly one render failure",
-          sum(1 for i in g2.get("items", []) if "render failed" in i["summary"]) == 1,
-          text)
     check("broken: G2 honoured hldcheck:ignore-diagram",
-          g2.get("stats", {}).get("diagrams") == 1, json.dumps(g2.get("stats")))
-    check("broken: G2 static lint caught the unquoted label",
-          "[V-9]" in text, text)
+          gate(payload, "G2").get("stats", {}).get("diagrams") == 3,
+          json.dumps(gate(payload, "G2").get("stats")))
+    check("broken: G2 reports one render failure",
+          sum(1 for i in gate(payload, "G2").get("items", [])
+              if "render failed" in i["summary"]) == 1, t["G2"])
 
-    g10 = gate(payload, "G10")
-    text = summaries(g10)
-    check("broken: G10 fails", g10["status"] == "fail", text)
+    check("broken: G3 flags the orphan level-3 parent", "nonexistent" in t["G3"], t["G3"])
+    check("broken: G3 flags the renamed element",
+          "named two ways" in t["G3"], t["G3"])
+
+    check("broken: G4 flags the undeclared section", "does not declare" in t["G4"], t["G4"])
+    check("broken: G4 flags the dangling concern ref", "C-99" in t["G4"], t["G4"])
+    check("broken: G4 flags the unframed concern", "C-07" in t["G4"], t["G4"])
+
+    check("broken: G5 flags the vague response measure",
+          "vague adjective" in t["G5"] or "not quantified" in t["G5"], t["G5"])
+    check("broken: G5 flags the incomplete scenario",
+          "six-part" in t["G5"], t["G5"])
+
+    check("broken: G6 flags the untagged pointer claim",
+          "no tier tag" in t["G6"], t["G6"])
+    check("broken: G6 flags the table with no Tier column",
+          "no Tier column" in t["G6"], t["G6"])
+
+    check("broken: G7 flags the ownerless proposal", "no owner" in t["G7"], t["G7"])
+    check("broken: G7 flags the triggerless proposal", "no trigger" in t["G7"], t["G7"])
+
+    check("broken: G8 flags the orphan [T0]", "does not reference a Q-nn" in t["G8"], t["G8"])
+    check("broken: G8 flags the register entry missing an owner",
+          "missing `owner`" in t["G8"], t["G8"])
+
+    check("broken: G9 flags non-semver version", "not semver" in t["G9"], t["G9"])
+    check("broken: G9 flags counts mismatch", "counts.concerns" in t["G9"], t["G9"])
+
     check("broken: G10 detects the human-edited agent block",
-          "edited by a human" in text, text)
+          "edited by a human" in t["G10"], t["G10"])
     check("broken: G10 detects the unhashed agent block",
-          "no `hash` attribute" in text, text)
+          "no `hash` attribute" in t["G10"], t["G10"])
+
+    check("broken: G11 flags the missing migration section",
+          "L3.8" in t["G11"], t["G11"])
+    check("broken: G11 flags the missing as-is/to-be markers",
+          "AS-IS" in t["G11"], t["G11"])
+
+    check("broken: G12 flags the dangling ADR reference", "ADR-999" in t["G12"], t["G12"])
+    check("broken: G12 flags the trade-off table with no ADR column",
+          "no ADR column" in t["G12"], t["G12"])
+    check("broken: G12 flags the ADR with no front matter",
+          "no YAML front matter" in t["G12"], t["G12"])
 
 
 def test_drift(work: Path, repo: Path, baseline: str, later: str) -> None:
     docs = work / "docs-clean"
     code, payload = run_cli(["--docs", str(docs), "--repo", str(repo),
                              "--at", later, "--gates", "G1"])
-
     drift = payload.get("drift", {})
     check("drift: exit code 3", code == 3, f"got {code}, drift={drift}")
     check("drift: literal change detected", drift.get("value_changed", 0) >= 1,
           json.dumps(drift))
     check("drift: moved symbol detected", drift.get("moved", 0) >= 1, json.dumps(drift))
-    text = summaries(gate(payload, "G1"))
     check("drift: findings are warnings, not baseline failures",
-          gate(payload, "G1")["status"] == "warn" and "DRIFT" in text, text)
+          gate(payload, "G1")["status"] == "warn"
+          and "DRIFT" in summaries(gate(payload, "G1")),
+          summaries(gate(payload, "G1")))
 
 
 def test_stamp(work: Path, repo: Path, baseline: str) -> None:
     docs = work / "docs-stamp"
     build_broken_docs(docs, baseline)
 
-    code, payload = run_cli(["--docs", str(docs), "--repo", str(repo), "--gates", "G10"])
+    _, payload = run_cli(["--docs", str(docs), "--repo", str(repo), "--gates", "G10"])
     before = gate(payload, "G10").get("stats", {})
     check("stamp: pre-stamp mismatch present",
           before.get("mismatched") == 1 and before.get("unhashed") == 1,
@@ -406,11 +221,23 @@ def test_stamp(work: Path, repo: Path, baseline: str) -> None:
         rc = main(["--docs", str(docs), "--stamp"])
     check("stamp: exits 0", rc == 0, buf.getvalue())
 
-    code, payload = run_cli(["--docs", str(docs), "--repo", str(repo), "--gates", "G10"])
+    _, payload = run_cli(["--docs", str(docs), "--repo", str(repo), "--gates", "G10"])
     after = gate(payload, "G10").get("stats", {})
     check("stamp: hashes reconciled afterwards",
           after.get("mismatched") == 0 and after.get("unhashed") == 0,
-          json.dumps(after) + " | " + summaries(gate(payload, "G10")))
+          json.dumps(after))
+
+
+def test_selection(work: Path, repo: Path) -> None:
+    docs = work / "docs-clean"
+    _, payload = run_cli(["--docs", str(docs), "--repo", str(repo), "--gates", "G4,G5"])
+    ran = [g["id"] for g in payload["gates"]]
+    check("selection: --gates runs only the requested gates", ran == ["G4", "G5"], str(ran))
+
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        rc = main(["--docs", str(docs), "--repo", str(repo), "--gates", "G42"])
+    check("selection: an unknown gate exits 2", rc == 2, buf.getvalue())
 
 
 def test_output_formats(work: Path, repo: Path) -> None:
@@ -424,7 +251,7 @@ def test_output_formats(work: Path, repo: Path) -> None:
         ok = sarif["runs"][0]["results"][0]["level"] == "error"
     except Exception as exc:  # noqa: BLE001
         ok, sarif = False, str(exc)
-    check("formats: sarif output is well-formed with an error result", ok, str(sarif)[:200])
+    check("formats: sarif is well-formed with an error result", ok, str(sarif)[:200])
 
     buf = io.StringIO()
     with redirect_stdout(buf):
@@ -437,7 +264,7 @@ def test_output_formats(work: Path, repo: Path) -> None:
 def main_tests() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("-k", dest="pattern", default="")
-    ap.add_argument("--keep", action="store_true", help="keep the temp workspace")
+    ap.add_argument("--keep", action="store_true")
     args = ap.parse_args()
 
     work = Path(tempfile.mkdtemp(prefix="hldcheck-tests-"))
@@ -447,10 +274,13 @@ def main_tests() -> int:
     print(f"workspace: {work}\nbaseline:  {baseline[:12]}\nlater:     {later[:12]}\n")
 
     cases = [
+        ("registration", lambda: test_registration(work, repo, baseline)),
         ("clean", lambda: test_clean(work, repo, baseline)),
+        ("clean-strict", lambda: test_clean_strict(work, repo, baseline)),
         ("broken", lambda: test_broken(work, repo, baseline)),
         ("drift", lambda: test_drift(work, repo, baseline, later)),
         ("stamp", lambda: test_stamp(work, repo, baseline)),
+        ("selection", lambda: test_selection(work, repo)),
         ("formats", lambda: test_output_formats(work, repo)),
     ]
     for name, fn in cases:
@@ -463,10 +293,10 @@ def main_tests() -> int:
     print(f"{PASSES} passed, {len(FAILURES)} failed")
     for f in FAILURES:
         print(f"  - {f}")
-    if not args.keep:
-        shutil.rmtree(work, ignore_errors=True)
-    else:
+    if args.keep:
         print(f"\nworkspace kept at {work}")
+    else:
+        shutil.rmtree(work, ignore_errors=True)
     return 1 if FAILURES else 0
 
 

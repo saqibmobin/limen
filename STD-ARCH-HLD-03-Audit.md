@@ -183,9 +183,11 @@ format in `-01` §5.
 
 The automatable gates are worth nothing as prose. They need a binary.
 
-**Implementation:** `tools/hldcheck/` — G1, G2, G9 and G10 are implemented;
-G3–G8, G11 and G12 remain specified below and are reported as *not implemented*
-rather than silently passing. See `tools/hldcheck/README.md`.
+**Implementation:** `tools/hldcheck/` — all twelve gates are implemented. Most
+checks are fully deterministic; four are necessarily heuristic and therefore warn
+by default and fail under `--strict`: G3's fuzzy name band, G6's quantity-without-
+tag scan, G7's tense check, and G11's tense check. Every gate's deterministic
+checks always fail. See `tools/hldcheck/README.md`.
 
 ### 6.1 Interface
 
