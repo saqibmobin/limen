@@ -21,6 +21,7 @@ Four artifacts. Three documents and a validator.
 | [`STD-LIMEN-02-Templates.md`](STD-LIMEN-02-Templates.md) | 808 | **Shapes.** Every section template, register schema, ADR format, required table columns | Authoring agent, one section at a time |
 | [`STD-LIMEN-03-Audit.md`](STD-LIMEN-03-Audit.md) | 541 | **Judgment.** Tailoring profiles, scoring, auditor protocol, hard gates | Auditor agent only |
 | [`tools/limen/`](tools/limen/README.md) | n/a | **Enforcement.** Validates all twelve hard gates mechanically | CI, and the agent before presenting |
+| [`examples/limen-hld/`](examples/README.md) | 442 | **Exemplar.** A complete HLD that passes all twelve gates under `--strict`, describing limen itself | Read once before authoring |
 
 The split is not cosmetic. An agent authoring L2 needs `-01` §3.6 and `-02` §11–14,
 about 200 lines, not 2,000. And the auditor must **never** load the authoring
@@ -271,6 +272,8 @@ its most likely failure mode in practice.
 - [ ] Add the `CLAUDE.md` block from §6
 - [ ] Add the CI workflow from [`tools/limen/README.md`](tools/limen/README.md#ci)
       (**with `fetch-depth: 0`**, or G1 cannot reach the baseline commit)
+- [ ] Read [`examples/limen-hld/`](examples/README.md) once, to see what a
+      gate-passing document looks like end to end
 - [ ] Run L0 on the repo and read the Open Questions before anything else
 
 ---

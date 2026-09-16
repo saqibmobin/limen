@@ -225,7 +225,7 @@ them. The 12 gates are the enforcement; these ids are what they enforce against.
 ## Tests
 
 ```bash
-python3 tools/limen/tests/run_tests.py          # 75 assertions
+python3 tools/limen/tests/run_tests.py          # 80 assertions
 python3 tools/limen/tests/run_tests.py -k drift --keep
 ```
 
@@ -233,6 +233,11 @@ The suite builds a throwaway git repo and two HLD document sets: one clean
 (which must pass all twelve gates, including under `--strict`), one seeded with a
 violation of every gate. It then asserts on gate status, stats and exit codes.
 Fixtures live in `tests/fixtures.py`. Requires mermaid-cli for the G2 assertions.
+
+The suite also runs the validator over the shipped worked example at
+`examples/limen-hld/`, which must pass all twelve gates under `--strict`. A
+conforming document that `limen` rejects is a bug in `limen`, and the exemplar is
+what makes that show up here rather than in an author's terminal.
 
 ## Layout
 

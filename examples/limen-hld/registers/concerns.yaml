@@ -1,0 +1,30 @@
+- id: C-01
+  stakeholder: HLD author (agent or human)
+  role: uses
+  concern: When a gate fails, know exactly which claim broke and what to change.
+  priority: H
+  framed_by: [L2.2, L3.1]
+- id: C-02
+  stakeholder: Document reviewer
+  role: audits
+  concern: Trust that [T1] claims were mechanically checked, not merely asserted.
+  priority: H
+  framed_by: [L1.4, L2.1]
+- id: C-03
+  stakeholder: CI owner
+  role: operates
+  concern: Keep the check fast and quiet enough that nobody routes around it.
+  priority: H
+  framed_by: [L2.6, L3.1]
+- id: C-04
+  stakeholder: Contributor adding a gate
+  role: builds
+  concern: Add a gate without re-parsing markdown or touching unrelated gates.
+  priority: M
+  framed_by: [L2.1, L3.10]
+- id: C-05
+  stakeholder: Standards maintainer
+  role: governs
+  concern: Keep the validator and the three standards from contradicting each other.
+  priority: H
+  framed_by: [L1.10, L3.9]

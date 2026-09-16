@@ -262,6 +262,38 @@ def test_subcommands(work: Path, repo: Path) -> None:
               (proc.stdout + proc.stderr)[-200:])
 
 
+def test_example(work: Path, repo: Path) -> None:
+    """The shipped worked example must pass all twelve gates under --strict.
+
+    A conforming document that limen rejects is a bug in limen, and without an
+    exemplar in CI that bug gets found by an author instead of the maintainer.
+    """
+    root = Path(__file__).resolve().parents[3]
+    docs = root / "examples" / "limen-hld"
+    if not docs.is_dir():
+        check("example: examples/limen-hld exists", False, str(docs))
+        return
+    code, payload = run_cli(["check", "--docs", str(docs), "--repo", str(root),
+                             "--strict"])
+
+    # A dirty working tree is a property of the checkout, not of the document,
+    # and --strict promotes it to a failure. CI checks out clean so it never
+    # fires there; tolerating it here keeps the test usable mid-edit.
+    def environmental(gate: dict) -> bool:
+        items = gate.get("items", [])
+        return bool(items) and all("working tree has uncommitted changes"
+                                   in i["summary"] for i in items)
+
+    failing = [g for g in payload["gates"]
+               if g["status"] != "pass" and not (g["status"] == "warn"
+                                                 and environmental(g))]
+    check("example: passes all twelve gates under --strict",
+          not failing,
+          f"exit {code}; " +
+          " ".join(f"{g['id']}={g['status']}" for g in failing) + " :: " +
+          " || ".join(summaries(g) for g in failing))
+
+
 def test_selection(work: Path, repo: Path) -> None:
     docs = work / "docs-clean"
     _, payload = run_cli(["--docs", str(docs), "--repo", str(repo), "--gates", "G4,G5"])
@@ -315,6 +347,7 @@ def main_tests() -> int:
         ("drift", lambda: test_drift(work, repo, baseline, later)),
         ("stamp", lambda: test_stamp(work, repo, baseline)),
         ("subcommands", lambda: test_subcommands(work, repo)),
+        ("example", lambda: test_example(work, repo)),
         ("selection", lambda: test_selection(work, repo)),
         ("formats", lambda: test_output_formats(work, repo)),
     ]

@@ -1,0 +1,54 @@
+- id: QA-01
+  attribute: correctness.groundedness
+  priority: { importance: H, difficulty: H }
+  source: A developer merging a change to the code an HLD describes
+  stimulus: Renames or moves a symbol that a [T1] claim points at
+  artifact: G1 provenance resolution
+  environment: CI, running against the current HEAD
+  response: The affected claim is reported as drifted, naming the claim and the symbol
+  response_measure: { detected_within_commits: 1, missed_drift_max: 0 }
+  derived_slo: SLO-01
+  fitness_function: FF-01
+  traded_against: [QA-02]
+- id: QA-02
+  attribute: performance
+  priority: { importance: H, difficulty: M }
+  source: CI pipeline
+  stimulus: Runs the full gate set over a document set of about 1000 lines
+  artifact: limen check
+  environment: Cold cache, no network, 2 vCPU runner
+  response: All twelve gates complete and a report is written
+  response_measure: { wall_clock_seconds_max: 60, without_diagrams_seconds_max: 5 }
+  derived_slo: SLO-02
+  fitness_function: FF-02
+  traded_against: [QA-01]
+- id: QA-03
+  attribute: portability
+  priority: { importance: M, difficulty: M }
+  source: An air-gapped review environment
+  stimulus: Invokes limen check with no network route
+  artifact: The whole tool
+  environment: No outbound DNS or HTTP
+  response: Every gate except diagram rendering completes normally
+  response_measure: { gates_degraded_max: 1, third_party_deps_max: 1 }
+- id: QA-04
+  attribute: modifiability
+  priority: { importance: M, difficulty: L }
+  source: A contributor
+  stimulus: Adds a thirteenth gate
+  artifact: The gates package
+  environment: Development
+  response: The gate reuses the shared document primitives and touches no other gate
+  response_measure: { files_touched_max: 3, existing_gates_modified_max: 0 }
+- id: QA-05
+  attribute: trustworthiness.false-positives
+  priority: { importance: H, difficulty: H }
+  source: An author whose document is correct
+  stimulus: Runs the full gate set
+  artifact: The heuristic checks in G3, G6, G7 and G11
+  environment: A document that satisfies the standards
+  response: The run is clean, so a passing run carries information
+  response_measure: { false_positive_findings_max: 0, heuristics_failing_by_default_max: 0 }
+  derived_slo: SLO-03
+  fitness_function: FF-03
+  traded_against: [QA-01]
