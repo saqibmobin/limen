@@ -137,6 +137,17 @@ Successful renders are cached by content hash in `.hldcheck-cache.json` beside
 the docs. Add it to `.gitignore`. `--no-cache` forces a re-render; `--jobs N`
 sets render parallelism (default 4).
 
+## Cross-reference checking
+
+`tools/check-xrefs.py` validates every internal `§` and rule citation in the
+three standards against the headings and rule definitions that actually exist.
+Section renumbering breaks these silently, and a wrong pointer in a standard
+about grounding claims is a bad look.
+
+```bash
+python3 tools/check-xrefs.py     # exit 1 on a broken reference
+```
+
 ## Tests
 
 ```bash

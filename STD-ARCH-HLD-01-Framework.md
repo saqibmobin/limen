@@ -48,7 +48,7 @@ and audit profile. Mode is recorded in front matter and cannot change mid-docume
 | :--- | :--- | :--- | :--- |
 | `greenfield` | System does not exist yet | PRD/RFC requirements, external standards (RFC 6749, etc.), arithmetic sizing bounds | Every component is T3 by definition; the doc must not use present tense for anything unbuilt |
 | `brownfield-asis` | Documenting an existing system | Repository at a pinned commit | ≥70% of §L2 claims must carry resolvable provenance; no proposals mixed into as-is sections |
-| `brownfield-change` | Designing a change to an existing system | Repository at a pinned commit, for as-is; requirements, for to-be | **As-is and to-be are physically separate sections.** A delta table (§L3.6) is mandatory. This is the most common real case and the easiest to get wrong |
+| `brownfield-change` | Designing a change to an existing system | Repository at a pinned commit, for as-is; requirements, for to-be | **As-is and to-be are physically separate sections.** A delta table (L3.8, §3.7.2) is mandatory. This is the most common real case and the easiest to get wrong |
 
 **Rule M-1.** In `brownfield-change`, no paragraph may describe as-is and to-be
 state together. If a sentence needs the word "will", it belongs in a to-be block.
@@ -123,7 +123,7 @@ a level. What it may not do is present L2 for review before L1 is gate-approved.
 
 **Corollary G-2.** If the user explicitly requests all levels in one pass, the
 agent complies but must emit an `Ungated` banner in front matter and the audit
-applies a fixed deduction (`-03` §5).
+applies a fixed deduction (`-03` §9).
 
 ### 3.2 Level map
 
@@ -158,7 +158,7 @@ when they conflict, what the decisions were, and what the top-level topology is.
 | L1.7 | **Constraint slice**: security, data class, cost, residency | always | §3.5 below |
 | L1.8 | C4 L1 System Context | always | |
 | L1.9 | C4 L2 Container topology **with trust boundaries** | always | Doubles as the threat-model DFD at L2.5 |
-| L1.10 | Shaping decisions → ADR index | always | The ADRs themselves live outside the HLD (§3.7) |
+| L1.10 | Shaping decisions → ADR index | always | The ADRs themselves live outside the HLD (§8) |
 
 ### 3.4 L1.4 — Quality tree and QA scenarios (the biggest v3 gap)
 
@@ -651,7 +651,7 @@ that is the tailoring mechanism working.
 9. **Decisions go to ADRs**, not into the HLD body (A-1).
 10. **Never touch `human:` blocks** (U-3); never overwrite a hash-mismatched
     agent block (U-2).
-11. **Repair, don't regenerate** (U-3/§7.3.3).
+11. **Repair, don't regenerate** (§7.3 step 3).
 12. **Render-verify every diagram** before presenting (V-14).
 13. **State coverage honestly.** Sampled is fine; implying exhaustive is not (D-6).
 14. **Do not self-audit.** The audit in `-03` is run by a different agent with a

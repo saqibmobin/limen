@@ -44,12 +44,12 @@ The validator parses this first; an invalid front matter fails gate G9.
 doc: hld
 id: HLD-ingest-platform
 title: Ingest Platform High-Level Design
-version: 4.1.0                    # semver; see -01 §7.3.6 for bump rules
+version: 4.1.0                    # semver; see -01 §7.3 step 6 for bump rules
 status: draft                     # draft | gate-0 | gate-1 | gate-2 | audited | superseded
 mode: brownfield-change           # greenfield | brownfield-asis | brownfield-change
 level: 2                          # highest level currently written
 profile: P2-product-service       # tailoring profile, see -03 §2
-ungated: false                    # true if all levels produced in one pass (-03 §5)
+ungated: false                    # true if all levels produced in one pass (-03 §9)
 
 repo:
   url: https://github.com/acme/ingest
