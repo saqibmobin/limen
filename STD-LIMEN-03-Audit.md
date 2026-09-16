@@ -1,9 +1,10 @@
 # Engineering Standard: Agent-Authored HLD — Audit, Tailoring & Validation
 
-**Document Reference:** `STD-ARCH-HLD-03`
-**Version:** 4.0.0
+**Document Reference:** `STD-LIMEN-03`
+**Version:** 5.0.0
 **Status:** Canonical
-**Companions:** `STD-ARCH-HLD-01-Framework.md` (process), `STD-ARCH-HLD-02-Templates.md` (templates)
+**Supersedes:** `STD-ARCH-HLD-03` v4.0.0 (identical content; renamed to Limen)
+**Companions:** `STD-LIMEN-01-Framework.md` (process), `STD-LIMEN-02-Templates.md` (templates)
 
 ---
 
@@ -179,20 +180,20 @@ format in `-01` §5.
 
 ---
 
-## 6. Validator (`hldcheck`)
+## 6. Validator (`limen`)
 
 The automatable gates are worth nothing as prose. They need a binary.
 
-**Implementation:** `tools/hldcheck/` — all twelve gates are implemented. Most
+**Implementation:** `tools/limen/` — all twelve gates are implemented. Most
 checks are fully deterministic; four are necessarily heuristic and therefore warn
 by default and fail under `--strict`: G3's fuzzy name band, G6's quantity-without-
 tag scan, G7's tense check, and G11's tense check. Every gate's deterministic
-checks always fail. See `tools/hldcheck/README.md`.
+checks always fail. See `tools/limen/README.md`.
 
 ### 6.1 Interface
 
 ```
-hldcheck [--docs docs/architecture] [--repo .] [--at HEAD]
+limen [--docs docs/architecture] [--repo .] [--at HEAD]
          [--format json|text|sarif] [--gates G1,G2,...] [--strict]
 ```
 
@@ -256,9 +257,9 @@ on:
 jobs:
   hld:
     steps:
-      - run: hldcheck --docs docs/architecture --repo . --at ${{ github.sha }}
+      - run: limen --docs docs/architecture --repo . --at ${{ github.sha }}
         continue-on-error: true       # advisory on code PRs
-      - run: hldcheck --docs docs/architecture --repo . --strict
+      - run: limen --docs docs/architecture --repo . --strict
         # blocking on PRs that touch docs/architecture/**
 ```
 
@@ -533,7 +534,7 @@ silence_audit:
 ## 12. Quick reference
 
 **Author, before presenting:**
-`hldcheck --strict` passes · every claim tagged · one baseline commit · every
+`limen --strict` passes · every claim tagged · one baseline commit · every
 `[T3]` has owner + trigger · every diagram renders and has prose · decisions are
 in ADR files · open questions register is non-empty and honest.
 

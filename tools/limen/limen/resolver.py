@@ -1,6 +1,6 @@
 """Symbol resolution for provenance pointers (`path@sha::symbol`).
 
-STD-ARCH-HLD-01 §5 prefers symbols over line numbers because symbols survive
+STD-LIMEN-01 §5 prefers symbols over line numbers because symbols survive
 refactors. Resolution is layered, most precise first, and every result records
 which layer answered so the report can flag low-durability pointers:
 

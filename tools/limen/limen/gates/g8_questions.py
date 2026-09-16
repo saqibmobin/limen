@@ -6,7 +6,7 @@ escape hatch open and honest.
 
 Note the unusual polarity: **an empty register fails.** An L0 with zero open
 questions is a signal the agent is guessing, not a clean bill of health
-(STD-ARCH-HLD-03 §5 G8). Nothing here penalizes disclosed uncertainty — Rule S-3
+(STD-LIMEN-03 §5 G8). Nothing here penalizes disclosed uncertainty — Rule S-3
 forbids that, because an auditor that punishes honest gaps trains the next agent
 to fabricate.
 """
@@ -46,7 +46,7 @@ def run(docs: DocSet, strict: bool = False) -> GateResult:
     if not isinstance(reg, list):
         if referenced:
             gate.fail(f"{len(referenced)} Q-nn id(s) appear in the document but there "
-                      "is no open-questions register (STD-ARCH-HLD-02 §5)")
+                      "is no open-questions register (STD-LIMEN-02 §5)")
         else:
             gate.fail("no open-questions register. Every [T0] needs somewhere to "
                       "point, and an L0 with no open questions means the agent had "

@@ -1,4 +1,4 @@
-"""Output renderers: text (human), json (STD-ARCH-HLD-03 §6.3), sarif (code scanning)."""
+"""Output renderers: text (human), json (STD-LIMEN-03 §6.3), sarif (code scanning)."""
 from __future__ import annotations
 
 import json
@@ -23,7 +23,7 @@ def render_text(payload: dict, gates: list[GateResult], verbose: bool = False,
     color = stream.isatty()
     w = stream.write
 
-    w(f"hldcheck  {payload['doc']} v{payload['version']}  "
+    w(f"limen  {payload['doc']} v{payload['version']}  "
       f"baseline {payload['baseline'][:7]}")
     if payload.get("evaluated_at") and payload["evaluated_at"] != payload["baseline"]:
         w(f"  (drift scan at {payload['evaluated_at'][:7]})")
@@ -80,7 +80,7 @@ def render_sarif(payload: dict, gates: list[GateResult], stream=None) -> None:
             "id": gate.id,
             "name": gate.name,
             "shortDescription": {"text": gate.name},
-            "helpUri": "https://example.invalid/STD-ARCH-HLD-03#gates",
+            "helpUri": "https://example.invalid/STD-LIMEN-03#gates",
         })
         for item in gate.items:
             if item.status not in (FAIL, WARN):
@@ -104,8 +104,8 @@ def render_sarif(payload: dict, gates: list[GateResult], stream=None) -> None:
         "version": "2.1.0",
         "runs": [{
             "tool": {"driver": {
-                "name": "hldcheck",
-                "informationUri": "https://example.invalid/hldcheck",
+                "name": "limen",
+                "informationUri": "https://example.invalid/limen",
                 "rules": list(rules.values()),
             }},
             "results": results,

@@ -1,4 +1,4 @@
-"""Fixture builders for the hldcheck test suite.
+"""Fixture builders for the limen test suite.
 
 Two HLD document sets over one throwaway git repo:
 
@@ -13,7 +13,7 @@ import os
 import subprocess
 from pathlib import Path
 
-from hldcheck.docset import normalize_block
+from limen.docset import normalize_block
 
 # --------------------------------------------------------------------------
 # git repository
@@ -547,7 +547,7 @@ G8: the cache topology is undetermined `[T0]`.
 
 This diagram is a deliberate example and must be skipped:
 
-<!-- hldcheck:ignore-diagram -->
+<!-- limen:ignore-diagram -->
 
 ```mermaid
 {BAD_MERMAID}```

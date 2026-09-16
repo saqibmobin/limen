@@ -2,7 +2,7 @@
 
 The completeness criterion from ISO/IEC/IEEE 42010, made mechanical: every
 `C-nn` is framed by at least one section, and every section declares what it
-frames — explicitly `—` when it frames nothing (STD-ARCH-HLD-01 O-1/O-2).
+frames — explicitly `—` when it frames nothing (STD-LIMEN-01 O-1/O-2).
 
 An unframed concern is a coverage gap. A section framing no concern should be
 cut; that is the tailoring mechanism working, not a nuisance finding.
@@ -41,7 +41,7 @@ def run(docs: DocSet, strict: bool = False) -> GateResult:
 
     if not concerns:
         gate.fail("no stakeholder concerns found; L0.3 requires a concern register "
-                  "with C-nn ids (STD-ARCH-HLD-02 §3)")
+                  "with C-nn ids (STD-LIMEN-02 §3)")
         gate.detail = "no concerns registered"
         return gate
     if source == "scanned":
@@ -50,7 +50,7 @@ def run(docs: DocSet, strict: bool = False) -> GateResult:
 
     if not sections:
         gate.fail("no sections with `L<level>.<n>` ids found; G4 cannot map "
-                  "concerns to sections (STD-ARCH-HLD-02 §23)")
+                  "concerns to sections (STD-LIMEN-02 §23)")
         gate.detail = "no identifiable sections"
         return gate
 
@@ -111,7 +111,7 @@ def _check_roles(gate: GateResult, concerns: dict, strict: bool) -> None:
     if len(roles) < MIN_ROLES:
         report = gate.fail if strict else gate.warn
         report(f"only {len(roles)} distinct stakeholder role(s) ({sorted(roles)}); "
-               f"STD-ARCH-HLD-03 C1 S1 expects at least {MIN_ROLES}. A register "
+               f"STD-LIMEN-03 C1 S1 expects at least {MIN_ROLES}. A register "
                "listing only builders has not been done")
 
 

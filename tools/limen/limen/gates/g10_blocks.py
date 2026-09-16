@@ -1,7 +1,7 @@
 """G10 — block ownership respected.
 
 Agent-owned regions carry a content hash. A mismatch means a human edited
-agent-owned content, and STD-ARCH-HLD-01 U-2 says the agent must NOT overwrite
+agent-owned content, and STD-LIMEN-01 U-2 says the agent must NOT overwrite
 it: promote the block to human ownership and raise a Q-nn. Human blocks are
 never modified by an agent (U-3).
 
@@ -31,7 +31,7 @@ def run(docs: DocSet, strict: bool = False) -> GateResult:
 
     if not blocks and not errors:
         gate.detail = ("no ownership markers found; update-safety cannot be "
-                       "guaranteed (STD-ARCH-HLD-01 §7.1)")
+                       "guaranteed (STD-LIMEN-01 §7.1)")
         gate.warn(gate.detail)
         return gate
 
@@ -49,7 +49,7 @@ def run(docs: DocSet, strict: bool = False) -> GateResult:
         if not b.declared_hash:
             unhashed += 1
             gate.fail("agent block has no `hash` attribute, so human edits to it "
-                      "cannot be detected; run `hldcheck --stamp` after authoring",
+                      "cannot be detected; run `limen --stamp` after authoring",
                       file=b.file, line=b.begin_line, detail={"id": b.id})
             continue
         if b.declared_hash.strip() != b.actual_hash:
@@ -57,7 +57,7 @@ def run(docs: DocSet, strict: bool = False) -> GateResult:
             gate.fail(
                 f"agent block '{b.id}' was edited by a human (hash mismatch). "
                 "Do NOT overwrite it: promote the block to <!-- human:begin --> "
-                "ownership and raise a Q-nn (STD-ARCH-HLD-01 U-2)",
+                "ownership and raise a Q-nn (STD-LIMEN-01 U-2)",
                 file=b.file, line=b.begin_line,
                 detail={"id": b.id, "declared": b.declared_hash,
                         "actual": b.actual_hash},

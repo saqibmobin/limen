@@ -1,6 +1,6 @@
 """G7 — proposal hygiene.
 
-Every `[T3]` carries an owner and a trigger (STD-ARCH-HLD-01 T-2): a proposal
+Every `[T3]` carries an owner and a trigger (STD-LIMEN-01 T-2): a proposal
 with neither is a wish, and the audit treats it as noise. No `[T3]` is written
 in the present tense, and in greenfield mode nothing is (Rule M-2) — describing
 unbuilt behavior as existing is the exact failure this standard was built to

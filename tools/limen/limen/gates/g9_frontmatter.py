@@ -1,7 +1,7 @@
 """G9 — front matter valid.
 
 Schema-valid front matter, exactly one baseline commit, and declared counts that
-match the document's actual content (STD-ARCH-HLD-02 §2, STD-ARCH-HLD-03 §5).
+match the document's actual content (STD-LIMEN-02 §2, STD-LIMEN-03 §5).
 """
 from __future__ import annotations
 
@@ -56,7 +56,7 @@ def run(docs: DocSet, git: Git | None = None, strict: bool = False) -> GateResul
     if (doc_id := front.get("id")) and not DOC_ID_RE.match(str(doc_id)):
         gate.fail(f"`id` '{doc_id}' should look like HLD-<slug>", file=src)
     if (ver := front.get("version")) and not SEMVER_RE.match(str(ver)):
-        gate.fail(f"`version` '{ver}' is not semver (see STD-ARCH-HLD-01 §7.3)", file=src)
+        gate.fail(f"`version` '{ver}' is not semver (see STD-LIMEN-01 §7.3)", file=src)
 
     _enum(gate, front, "status", STATUS, src)
     _enum(gate, front, "mode", MODES, src)
@@ -96,7 +96,7 @@ def _check_repo(gate: GateResult, front: dict, src: str, git: Git | None) -> Non
     commit = str(repo.get("commit", ""))
     if not SHA40_RE.match(commit):
         gate.fail(f"`repo.commit` must be a full 40-character SHA, got '{commit}'. "
-                  "One baseline per document version (STD-ARCH-HLD-01 §5.1)", file=src)
+                  "One baseline per document version (STD-LIMEN-01 §5.1)", file=src)
     else:
         short = str(repo.get("short", ""))
         if short and not commit.startswith(short.lower()):
@@ -119,7 +119,7 @@ def _check_repo(gate: GateResult, front: dict, src: str, git: Git | None) -> Non
         gate.fail(f"`repo.inspected` must be one of {sorted(INSPECTED)}", file=src)
     if inspected == "sampled" and not repo.get("sampling_note"):
         gate.fail("`repo.inspected: sampled` requires `sampling_note` stating what was "
-                  "sampled rather than inspected (STD-ARCH-HLD-01 D-6)", file=src)
+                  "sampled rather than inspected (STD-LIMEN-01 D-6)", file=src)
 
 
 def _check_people(gate: GateResult, front: dict, src: str) -> None:
@@ -175,7 +175,7 @@ def _check_counts(gate: GateResult, front: dict, docs: DocSet, src: str,
         "open_questions" in counts and docs.id_count("open_questions") == 0
     ):
         gate.warn("zero open questions declared; G8 treats an empty register as a "
-                  "signal the agent is guessing (STD-ARCH-HLD-03 §5)", file=src)
+                  "signal the agent is guessing (STD-LIMEN-03 §5)", file=src)
 
 
 def _check_changelog(gate: GateResult, front: dict, src: str) -> None:
@@ -202,7 +202,7 @@ def _check_override(gate: GateResult, front: dict, src: str) -> None:
         return
     if not isinstance(override, dict) or not override.get("justification"):
         gate.fail("`profile_override` requires a `justification` "
-                  "(STD-ARCH-HLD-03 §2.2)", file=src)
+                  "(STD-LIMEN-03 §2.2)", file=src)
         return
     weights = override.get("weights", {})
     if isinstance(weights, dict) and len(weights) > 1:

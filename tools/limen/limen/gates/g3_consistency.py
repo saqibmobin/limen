@@ -1,6 +1,6 @@
 """G3 — model name consistency.
 
-STD-ARCH-HLD-01 V-1: an element's name is identical across every diagram and
+STD-LIMEN-01 V-1: an element's name is identical across every diagram and
 every prose mention. V-2: every C4 L3 component belongs to exactly one L2
 container that exists in the L1 context.
 

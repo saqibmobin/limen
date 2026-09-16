@@ -1,13 +1,13 @@
 """G2 — diagrams render.
 
 Two layers:
-  1. Static lint of the syntax rules in STD-ARCH-HLD-01 §9.3 (V-9..V-13). Cheap,
+  1. Static lint of the syntax rules in STD-LIMEN-01 §9.3 (V-9..V-13). Cheap,
      runs everywhere, catches the failures that break third-party renderers even
      when mermaid itself is tolerant.
   2. Actual render via mermaid-cli. Authoritative, needs a browser.
 
 Renders are content-hash cached, so only changed diagrams pay the browser cost.
-A diagram preceded by `<!-- hldcheck:ignore-diagram -->` is skipped, for
+A diagram preceded by `<!-- limen:ignore-diagram -->` is skipped, for
 documents that show deliberately invalid examples.
 """
 from __future__ import annotations
@@ -24,8 +24,8 @@ from pathlib import Path
 from ..docset import DocSet, Diagram
 from ..model import GateResult, Item
 
-CACHE_NAME = ".hldcheck-cache.json"
-IGNORE_MARK = "hldcheck:ignore-diagram"
+CACHE_NAME = ".limen-cache.json"
+IGNORE_MARK = "limen:ignore-diagram"
 PARSE_ERR_RE = re.compile(r"Parse error on line (\d+)")
 
 FLOWCHART_RE = re.compile(r"^\s*(graph|flowchart)\b(.*)$", re.M)
@@ -116,7 +116,7 @@ def lint(d: Diagram) -> list[tuple[str, str, int]]:
 # --------------------------------------------------------------------------
 
 def _render_one(cmd: list[str], d: Diagram, timeout: int) -> tuple[bool, str]:
-    with tempfile.TemporaryDirectory(prefix="hldcheck-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="limen-") as tmp:
         src = Path(tmp) / "d.mmd"
         out = Path(tmp) / "d.svg"
         src.write_text(d.source, encoding="utf-8")

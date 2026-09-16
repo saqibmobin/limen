@@ -2,7 +2,7 @@
 
 Every `[T1]` claim carries a `path@sha::symbol` pointer. This gate resolves all
 of them against the declared baseline commit and, with --at, against a second
-revision to report drift (STD-ARCH-HLD-01 §5, STD-ARCH-HLD-03 §5-§6).
+revision to report drift (STD-LIMEN-01 §5, STD-LIMEN-03 §5-§6).
 
 Outcomes per pointer: resolved | missing | value-changed | moved (drift only).
 """
@@ -83,7 +83,7 @@ def run(docs: DocSet, git: Git, at: str | None = None,
 
     for rel, line, what in docs.legacy_pointers():
         gate.fail(f"forbidden pointer form ({what}); use `path@sha::symbol` "
-                  "(STD-ARCH-HLD-01 §5.1)", file=rel, line=line)
+                  "(STD-LIMEN-01 §5.1)", file=rel, line=line)
 
     pointers = docs.pointers()
     if not pointers:
@@ -157,7 +157,7 @@ def run(docs: DocSet, git: Git, at: str | None = None,
                   f"threshold ({counts['resolved']}/{total})")
     if counts["value-changed"]:
         gate.fail(f"{counts['value-changed']} quoted literal(s) no longer match the "
-                  "code; every quoted literal must match (STD-ARCH-HLD-03 G1)")
+                  "code; every quoted literal must match (STD-LIMEN-03 G1)")
     if low_durability and strict:
         gate.fail(f"{low_durability} pointer(s) resolved only by line range or bare "
                   "identifier; --strict requires declaration-bearing symbols")

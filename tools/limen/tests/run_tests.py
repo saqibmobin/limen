@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""End-to-end tests for hldcheck.
+"""End-to-end tests for limen.
 
 Builds a throwaway git repo and two HLD document sets (one clean, one seeded
 with a violation of every gate), runs the CLI in-process, and asserts on gate
@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from fixtures import build_broken_docs, build_clean_docs, build_repo  # noqa: E402
-from hldcheck.cli import IMPLEMENTED, main  # noqa: E402
+from limen.cli import IMPLEMENTED, main  # noqa: E402
 
 FAILURES: list[str] = []
 PASSES = 0
@@ -139,7 +139,7 @@ def test_broken(work: Path, repo: Path, baseline: str) -> None:
     check("broken: G1 flags mixed baseline", "deadbee" in t["G1"], t["G1"])
     check("broken: G1 flags file:// pointer", "forbidden pointer form" in t["G1"], t["G1"])
 
-    check("broken: G2 honoured hldcheck:ignore-diagram",
+    check("broken: G2 honoured limen:ignore-diagram",
           gate(payload, "G2").get("stats", {}).get("diagrams") == 3,
           json.dumps(gate(payload, "G2").get("stats")))
     check("broken: G2 reports one render failure",
@@ -218,7 +218,7 @@ def test_stamp(work: Path, repo: Path, baseline: str) -> None:
 
     buf = io.StringIO()
     with redirect_stdout(buf):
-        rc = main(["--docs", str(docs), "--stamp"])
+        rc = main(["stamp", "--docs", str(docs)])
     check("stamp: exits 0", rc == 0, buf.getvalue())
 
     _, payload = run_cli(["--docs", str(docs), "--repo", str(repo), "--gates", "G10"])
@@ -226,6 +226,21 @@ def test_stamp(work: Path, repo: Path, baseline: str) -> None:
     check("stamp: hashes reconciled afterwards",
           after.get("mismatched") == 0 and after.get("unhashed") == 0,
           json.dumps(after))
+
+
+def test_subcommands(work: Path, repo: Path) -> None:
+    docs = work / "docs-clean"
+    bare = run_cli(["--docs", str(docs), "--repo", str(repo), "--gates", "G9"])
+    named = run_cli(["check", "--docs", str(docs), "--repo", str(repo), "--gates", "G9"])
+    check("subcommands: bare invocation defaults to `check`",
+          bare[0] == named[0] and bare[1]["gates"] == named[1]["gates"],
+          f"{bare[0]} vs {named[0]}")
+
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        rc = main(["xrefs", "--dir", str(Path(__file__).resolve().parents[3])])
+    check("subcommands: `limen xrefs` runs and finds no broken references",
+          rc == 0 and "0 broken reference" in buf.getvalue(), buf.getvalue()[-200:])
 
 
 def test_selection(work: Path, repo: Path) -> None:
@@ -267,7 +282,7 @@ def main_tests() -> int:
     ap.add_argument("--keep", action="store_true")
     args = ap.parse_args()
 
-    work = Path(tempfile.mkdtemp(prefix="hldcheck-tests-"))
+    work = Path(tempfile.mkdtemp(prefix="limen-tests-"))
     repo = work / "repo"
     repo.mkdir()
     baseline, later = build_repo(repo)
@@ -280,6 +295,7 @@ def main_tests() -> int:
         ("broken", lambda: test_broken(work, repo, baseline)),
         ("drift", lambda: test_drift(work, repo, baseline, later)),
         ("stamp", lambda: test_stamp(work, repo, baseline)),
+        ("subcommands", lambda: test_subcommands(work, repo)),
         ("selection", lambda: test_selection(work, repo)),
         ("formats", lambda: test_output_formats(work, repo)),
     ]

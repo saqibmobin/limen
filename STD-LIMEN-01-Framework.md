@@ -1,12 +1,13 @@
 # Engineering Standard: Agent-Authored HLD — Framework & Process
 
-**Document Reference:** `STD-ARCH-HLD-01`
-**Version:** 4.0.0
+**Document Reference:** `STD-LIMEN-01`
+**Version:** 5.0.0
 **Status:** Canonical
-**Supersedes:** `STD-ARCH-LLM-HLD-002` v3.0.0 (single-file Progressive Multi-Level Standard)
+**Supersedes:** `STD-ARCH-HLD-01` v4.0.0 (identical content; renamed to Limen)
+**Also supersedes:** `STD-ARCH-LLM-HLD-002` v3.0.0 (single-file Progressive Multi-Level Standard)
 **Companion Documents:**
-- `STD-ARCH-HLD-02-Templates.md` — section templates, table schemas, front matter
-- `STD-ARCH-HLD-03-Audit.md` — tailoring profiles, hard gates, scoring rubric, validator spec
+- `STD-LIMEN-02-Templates.md` — section templates, table schemas, front matter
+- `STD-LIMEN-03-Audit.md` — tailoring profiles, hard gates, scoring rubric, validator spec
 
 **Audience:** Autonomous coding agents, AI architecture agents, engineering leads, ARB reviewers.
 
@@ -674,3 +675,10 @@ that is the tailoring mechanism working.
 | Google design-doc practice | Non-goals, alternatives-considered as the highest-value section, right-sizing |
 | AWS Well-Architected | L3 review-question bank; the **lens** concept behind tailoring profiles |
 | Docs-as-code drift practice | CI validation, staleness surfacing, targeted repair over regeneration |
+
+---
+
+## 13. Attribution
+
+> Limen is not affiliated with or endorsed by arc42.org. arc42® is a
+> registered trademark of Dr. Gernot Starke and Dr. Peter Hruschka.

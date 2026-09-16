@@ -1,6 +1,6 @@
 """Discovery and parsing of an HLD document set.
 
-Handles both layouts from STD-ARCH-HLD-01 §10.1: a directory of numbered
+Handles both layouts from STD-LIMEN-01 §10.1: a directory of numbered
 markdown files with a registers/ sibling, and a single-file HLD with embedded
 registers.
 """
@@ -28,7 +28,7 @@ POINTER_RE = re.compile(
     r"(?P<tail>\s*={1,2}\s*[^\n,)|`]+)?"
 )
 
-# v3-style pointers that v4 forbids (STD-ARCH-HLD-01 §5.1).
+# v3-style pointers that v4 forbids (STD-LIMEN-01 §5.1).
 LEGACY_POINTER_RE = re.compile(r"`?(?P<uri>file://[^\s`)]+)`?")
 ABSOLUTE_POINTER_RE = re.compile(r"`(?P<path>/[^`\s@]+)@[0-9a-fA-F]{7,40}")
 

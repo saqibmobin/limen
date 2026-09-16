@@ -1,7 +1,7 @@
 """G5 — response measures.
 
 Every `QA-nn` is a complete six-part SEI scenario with a *quantified* response
-measure (STD-ARCH-HLD-01 Q-1, STD-ARCH-HLD-02 §7.2). "Fast" and "highly
+measure (STD-LIMEN-01 Q-1, STD-LIMEN-02 §7.2). "Fast" and "highly
 available" are not response measures; the number is the whole point, because it
 is what makes the scenario testable.
 
@@ -48,11 +48,11 @@ def run(docs: DocSet, strict: bool = False) -> GateResult:
         if scanned:
             gate.fail(f"{scanned} QA-nn id(s) appear in the document but there is no "
                       "quality-scenarios register; G5 needs the structured form "
-                      "(STD-ARCH-HLD-02 §7.2)")
+                      "(STD-LIMEN-02 §7.2)")
         else:
             gate.fail("no quality attribute scenarios found. Architecture is driven "
                       "by quality attributes; without them the trade-offs have no "
-                      "axis (STD-ARCH-HLD-01 §3.4)")
+                      "axis (STD-LIMEN-01 §3.4)")
         gate.detail = "no quality-scenarios register"
         return gate
 
@@ -88,7 +88,7 @@ def run(docs: DocSet, strict: bool = False) -> GateResult:
         _check_traces(gate, qid, entry, strict)
 
     if len(reg) < MIN_SCENARIOS:
-        gate.warn(f"only {len(reg)} scenario(s); STD-ARCH-HLD-01 Q-3 expects at "
+        gate.warn(f"only {len(reg)} scenario(s); STD-LIMEN-01 Q-3 expects at "
                   f"least {MIN_SCENARIOS}. A system with fewer than 3 high-importance "
                   "quality attributes probably wants the P5 lightweight profile")
 
@@ -128,7 +128,7 @@ def _check_traces(gate: GateResult, qid: str, entry: dict, strict: bool) -> None
     if not entry.get("fitness_function"):
         report = gate.fail if strict else gate.warn
         report(f"{qid} is high-importance but names no fitness function; an "
-               "unenforced quality attribute is a hope (STD-ARCH-HLD-01 F-1)",
+               "unenforced quality attribute is a hope (STD-LIMEN-01 F-1)",
                detail={"id": qid})
     if not entry.get("derived_slo") and not entry.get("slo"):
         gate.warn(f"{qid} is high-importance but names no derived SLO",
@@ -152,7 +152,7 @@ def _check_conflict_set(gate: GateResult, docs: DocSet, reg: list,
         report = gate.fail if strict else gate.warn
         report("no conflict set found: no scenario declares `traded_against` and no "
                "conflict table is present. A quality model where nothing competes "
-               "has not been prioritized (STD-ARCH-HLD-02 §7.3)")
+               "has not been prioritized (STD-LIMEN-02 §7.3)")
         return
 
     dangling = [t for t in traded if t not in ids]

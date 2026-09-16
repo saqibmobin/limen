@@ -1,8 +1,8 @@
-# hldcheck
+# limen
 
-Validator for the agent-authored HLD standard (`STD-ARCH-HLD-01/02/03`).
+Validator for the agent-authored HLD standard (`STD-LIMEN-01/02/03`).
 
-It turns the automatable hard gates in `STD-ARCH-HLD-03` §5 from prose into a
+It turns the automatable hard gates in `STD-LIMEN-03` §5 from prose into a
 build step. Without it, "grounded in code" is an aspiration; with it, a claim
 that no longer resolves fails CI.
 
@@ -13,7 +13,7 @@ that no longer resolves fails CI.
 No install. Python 3.9+ and `git`; `PyYAML` for front matter and registers.
 
 ```bash
-python3 tools/hldcheck/hldcheck-cli --docs docs/architecture --repo .
+python3 tools/limen/bin/limen check --docs docs/architecture --repo .
 ```
 
 Diagram rendering (G2) additionally needs mermaid-cli. It is discovered in this
@@ -32,7 +32,7 @@ Without it G2 still runs its static lint and reports the render step as skipped.
 | **G6** Tier tagging | Pointer-bearing claims tagged; `[T1]` anchored to a pointer, ADR or standard; normative tables have a Tier column; T-4 anti-laundering |
 | **G7** Proposal hygiene | Every `[T3]` has an owner and a trigger, and does not read as present tense |
 | **G8** Open questions | Register exists and is **non-empty**; every `[T0]` resolves to a `Q-nn`; open questions have owner + resolution path |
-| **G9** Front matter valid | Schema per `STD-ARCH-HLD-02` §2; baseline commit exists in the repo; declared `counts` match the content |
+| **G9** Front matter valid | Schema per `STD-LIMEN-02` §2; baseline commit exists in the repo; declared `counts` match the content |
 | **G10** Block ownership | `agent:` block hashes intact; no unhashed agent blocks; markers well-formed; ids unique |
 | **G11** Mode discipline | greenfield: no present-tense unbuilt behavior. brownfield-change: no unit mixing `[AS-IS]`/`[TO-BE]`, migration section present |
 | **G12** ADR externality | Every `ADR-nnn` resolves to a file with valid MADR front matter; trade-off rows cite an ADR and name what they sacrifice |
@@ -46,7 +46,7 @@ and G11. Every gate's deterministic checks fail regardless of `--strict`.
 
 `G8` has an unusual polarity worth knowing: an **empty** open-questions register
 fails, because zero open questions means the agent had nowhere it was willing to
-admit uncertainty. Nothing in hldcheck penalizes a disclosed `[T0]`.
+admit uncertainty. Nothing in limen penalizes a disclosed `[T0]`.
 
 ### G1 symbol resolution
 
@@ -68,17 +68,17 @@ a miss is reported, never guessed.
 
 ```bash
 # full check
-hldcheck-cli --docs docs/architecture --repo .
+limen check --docs docs/architecture --repo .
 
 # drift scan: are the claims still true at HEAD?  (exit 3 if not)
-hldcheck-cli --docs docs/architecture --repo . --at HEAD
+limen check --docs docs/architecture --repo . --at HEAD
 
 # subset, machine-readable, CI-ready
-hldcheck-cli --gates G1,G9 --format json
-hldcheck-cli --format sarif > hld.sarif
+limen check --gates G1,G9 --format json
+limen check --format sarif > hld.sarif
 
 # after authoring agent blocks, stamp their content hashes
-hldcheck-cli --docs docs/architecture --stamp
+limen stamp --docs docs/architecture
 ```
 
 | Exit | Meaning |
@@ -92,7 +92,7 @@ hldcheck-cli --docs docs/architecture --stamp
 
 It recomputes `agent:begin` hashes in place. Run it immediately after writing an
 agent block. **Never run it to clear a G10 mismatch** — a mismatch means a human
-edited agent-owned content, and `STD-ARCH-HLD-01` U-2 says to promote that block
+edited agent-owned content, and `STD-LIMEN-01` U-2 says to promote that block
 to `human:` ownership and raise a `Q-nn`. Stamping over it destroys exactly the
 edit the gate exists to protect.
 
@@ -101,7 +101,7 @@ edit the gate exists to protect.
 A document that shows intentionally invalid mermaid marks it:
 
 ```markdown
-<!-- hldcheck:ignore-diagram -->
+<!-- limen:ignore-diagram -->
 ```
 
 ## CI
@@ -118,41 +118,41 @@ jobs:
         with: { fetch-depth: 0 }        # baseline commit must be reachable
       - run: pip install pyyaml
       # advisory on code PRs: drift opens a Q-nn, it does not block the change
-      - run: python3 tools/hldcheck/hldcheck-cli --at ${{ github.sha }}
+      - run: python3 tools/limen/bin/limen --at ${{ github.sha }}
         continue-on-error: true
       # blocking on PRs that touch the HLD itself
-      - run: python3 tools/hldcheck/hldcheck-cli --strict
+      - run: python3 tools/limen/bin/limen --strict
         if: contains(github.event.pull_request.changed_files, 'docs/architecture/')
 ```
 
 Blocking on every code PR turns the standard into a tax and teams route around
-it. This is fitness function `FF-07` in `STD-ARCH-HLD-02` §15.
+it. This is fitness function `FF-07` in `STD-LIMEN-02` §15.
 
 `fetch-depth: 0` matters: a shallow clone will not contain the baseline commit
 and G1 fails with "baseline commit unavailable" rather than a real result.
 
 ## Caching
 
-Successful renders are cached by content hash in `.hldcheck-cache.json` beside
+Successful renders are cached by content hash in `.limen-cache.json` beside
 the docs. Add it to `.gitignore`. `--no-cache` forces a re-render; `--jobs N`
 sets render parallelism (default 4).
 
 ## Cross-reference checking
 
-`tools/check-xrefs.py` validates every internal `§` and rule citation in the
-three standards against the headings and rule definitions that actually exist.
+`limen xrefs` validates every internal `§` and rule citation in the three
+standards against the headings and rule definitions that actually exist.
 Section renumbering breaks these silently, and a wrong pointer in a standard
 about grounding claims is a bad look.
 
 ```bash
-python3 tools/check-xrefs.py     # exit 1 on a broken reference
+limen xrefs     # exit 1 on a broken reference
 ```
 
 ## Tests
 
 ```bash
-python3 tools/hldcheck/tests/run_tests.py          # 75 assertions
-python3 tools/hldcheck/tests/run_tests.py -k drift --keep
+python3 tools/limen/tests/run_tests.py          # 75 assertions
+python3 tools/limen/tests/run_tests.py -k drift --keep
 ```
 
 The suite builds a throwaway git repo and two HLD document sets — one clean
@@ -163,13 +163,14 @@ Fixtures live in `tests/fixtures.py`. Requires mermaid-cli for the G2 assertions
 ## Layout
 
 ```
-hldcheck-cli              entry point (no install needed)
-hldcheck/
+bin/limen          entry point (no install needed)
+limen/
 ├── cli.py                argument parsing, gate orchestration, exit codes
 ├── docset.py             document discovery, front matter, pointer/diagram/block extraction
 ├── gitio.py              cached git plumbing (read-only, revision-addressed)
 ├── resolver.py           layered symbol resolution + literal verification
 ├── report.py             text / json / sarif renderers
+├── xrefs.py              `limen xrefs` — standards cross-reference checker
 ├── model.py              GateResult, Item, status vocabulary
 └── gates/
     ├── g1_provenance.py     g7_proposals.py

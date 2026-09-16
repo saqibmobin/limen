@@ -4,10 +4,10 @@ Four artifacts. Three documents and a validator.
 
 | Artifact | Lines | What it is | Who loads it |
 | :--- | ---: | :--- | :--- |
-| [`STD-ARCH-HLD-01-Framework.md`](STD-ARCH-HLD-01-Framework.md) | 676 | **Process.** Modes, levels L0–L3, gates, evidence tiers, provenance format, discovery protocol, update mode, diagram rules | Authoring agent, every run |
-| [`STD-ARCH-HLD-02-Templates.md`](STD-ARCH-HLD-02-Templates.md) | 808 | **Shapes.** Every section template, register schema, ADR format, required table columns | Authoring agent, one section at a time |
-| [`STD-ARCH-HLD-03-Audit.md`](STD-ARCH-HLD-03-Audit.md) | 541 | **Judgment.** Tailoring profiles, scoring, auditor protocol, hard gates | Auditor agent only |
-| [`tools/hldcheck/`](tools/hldcheck/README.md) | — | **Enforcement.** Validates all twelve hard gates mechanically | CI, and the agent before presenting |
+| [`STD-LIMEN-01-Framework.md`](STD-LIMEN-01-Framework.md) | 676 | **Process.** Modes, levels L0–L3, gates, evidence tiers, provenance format, discovery protocol, update mode, diagram rules | Authoring agent, every run |
+| [`STD-LIMEN-02-Templates.md`](STD-LIMEN-02-Templates.md) | 808 | **Shapes.** Every section template, register schema, ADR format, required table columns | Authoring agent, one section at a time |
+| [`STD-LIMEN-03-Audit.md`](STD-LIMEN-03-Audit.md) | 541 | **Judgment.** Tailoring profiles, scoring, auditor protocol, hard gates | Auditor agent only |
+| [`tools/limen/`](tools/limen/README.md) | — | **Enforcement.** Validates all twelve hard gates mechanically | CI, and the agent before presenting |
 
 The split is not cosmetic. An agent authoring L2 needs `-01` §3.6 and `-02` §11–14 —
 about 200 lines — not 2,000. And the auditor must **never** load the authoring
@@ -26,7 +26,7 @@ is the reason agents skim standards.
 | **Foundations (L1)** | `-01` §3.3–3.5, §4, §5, §9 · `-02` §7–§10 | ~340 |
 | **Mechanics (L2)** | `-01` §3.6 · `-02` §11–§14 | ~260 |
 | **Ops & evolution (L3)** | `-01` §3.7 · `-02` §15–§22 | ~250 |
-| **Update run** | `-01` §5, §7 · `-02` §23 · hldcheck drift output | ~150 |
+| **Update run** | `-01` §5, §7 · `-02` §23 · limen drift output | ~150 |
 | **Audit** | `-03` entire · `-01` §4, §5 · **not** `-01` §3 or `-02` | ~600 |
 
 `-01` §11 (the operating rules card, 20 lines) is worth keeping resident across
@@ -43,7 +43,7 @@ every authoring phase.
 git rev-parse HEAD
 
 # 2. Confirm the validator runs before writing anything.
-python3 tools/hldcheck/hldcheck-cli --docs docs/architecture --repo . --gates G9
+python3 tools/limen/bin/limen check --docs docs/architecture --repo . --gates G9
 ```
 
 ### The loop
@@ -59,8 +59,8 @@ At each level the agent:
 
 1. **Writes** sections into `docs/architecture/`, wrapped in
    `<!-- agent:begin id="L2.4" -->` markers.
-2. **Stamps** block hashes: `hldcheck-cli --docs docs/architecture --stamp`
-3. **Validates**: `hldcheck-cli --docs docs/architecture --repo .`
+2. **Stamps** block hashes: `limen stamp --docs docs/architecture`
+3. **Validates**: `limen check --docs docs/architecture --repo .`
 4. **Fixes** every gate failure. A gate failure means the document is not yet
    reviewable — do not present it.
 5. **Presents** a summary plus the open questions raised at this level, and stops.
@@ -87,7 +87,7 @@ This is the majority of real work and it is **not** a re-run of §2.
 
 ```bash
 # What has drifted since the baseline?
-python3 tools/hldcheck/hldcheck-cli --docs docs/architecture --repo . --at HEAD
+python3 tools/limen/bin/limen check --docs docs/architecture --repo . --at HEAD
 # exit 3 = gates pass but claims have drifted
 ```
 
@@ -102,11 +102,11 @@ Then follow `-01` §7.3:
 5. Append to the front-matter `changelog`.
 6. Bump: patch for provenance repair, minor for new components, **major for any
    change to L1.4 quality priorities or a shaping ADR** (which re-opens Gate 1).
-7. Re-run `hldcheck`, then re-audit at the profile's depth (`-03` §2.3).
+7. Re-run `limen`, then re-audit at the profile's depth (`-03` §2.3).
 
-**If `hldcheck` reports a G10 hash mismatch, stop.** A human edited agent-owned
+**If `limen` reports a G10 hash mismatch, stop.** A human edited agent-owned
 content. Promote that block to `<!-- human:begin -->` and raise a `Q-nn`. Do not
-run `--stamp` to make the error go away; that destroys the edit.
+run `limen stamp` to make the error go away; that destroys the edit.
 
 ---
 
@@ -156,20 +156,20 @@ Paste into the repo's `CLAUDE.md` (or the equivalent for your agent):
 ```markdown
 ## Architecture documentation
 
-HLDs in this repo follow `docs/standards/STD-ARCH-HLD-01-Framework.md`.
+HLDs in this repo follow `docs/standards/STD-LIMEN-01-Framework.md`.
 
 When asked to create or update an HLD:
-1. Read STD-ARCH-HLD-01 §11 (operating rules) first — always.
+1. Read STD-LIMEN-01 §11 (operating rules) first — always.
 2. Load only the phase you are in; see the context load map in the standards README.
 3. Never one-shot all levels. Present L0, stop, and wait.
 4. Before presenting anything, run:
-   `python3 tools/hldcheck/hldcheck-cli --docs docs/architecture --repo . --strict`
+   `python3 tools/limen/bin/limen check --docs docs/architecture --repo . --strict`
    Fix every failure. A gate failure means it is not ready to present.
-5. Never self-audit. The audit is a separate invocation (STD-ARCH-HLD-03 §4.1).
+5. Never self-audit. The audit is a separate invocation (STD-LIMEN-03 §4.1).
 ```
 
 For updates, trigger on the drift check rather than on a schedule — run
-`hldcheck --at HEAD` in CI (advisory on code PRs, blocking on HLD PRs) and let
+`limen check --at HEAD` in CI (advisory on code PRs, blocking on HLD PRs) and let
 exit code 3 open the ticket. That is fitness function `FF-07`.
 
 ---
@@ -195,9 +195,16 @@ its most likely failure mode in practice.
 
 - [ ] `pip install pyyaml`; confirm mermaid-cli resolves (`--gates G2` on any doc)
 - [ ] Create `docs/architecture/` and `docs/adr/`
-- [ ] Add `.hldcheck-cache.json` to `.gitignore`
+- [ ] Add `.limen-cache.json` to `.gitignore`
 - [ ] Copy these three standards into `docs/standards/`
 - [ ] Add the `CLAUDE.md` block from §6
-- [ ] Add the CI workflow from [`tools/hldcheck/README.md`](tools/hldcheck/README.md#ci)
+- [ ] Add the CI workflow from [`tools/limen/README.md`](tools/limen/README.md#ci)
       — **with `fetch-depth: 0`**, or G1 cannot reach the baseline commit
 - [ ] Run L0 on the repo and read the Open Questions before anything else
+
+---
+
+## Attribution
+
+> Limen is not affiliated with or endorsed by arc42.org. arc42® is a
+> registered trademark of Dr. Gernot Starke and Dr. Peter Hruschka.

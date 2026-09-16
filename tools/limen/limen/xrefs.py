@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Cross-reference checker for the STD-ARCH-HLD standards.
+"""`limen xrefs` — cross-reference checker for the STD-LIMEN standards.
 
 The standards cite each other constantly (`-03` §9, §3.7.2, Rule U-2). Those
 citations rot silently when sections are renumbered, and a wrong pointer in a
@@ -7,20 +7,19 @@ standard about grounding claims is a bad look. This validates every internal
 section and rule reference against the headings and rule definitions that
 actually exist.
 
-Usage:  python3 tools/check-xrefs.py [--dir .]
+Usage:  limen xrefs [--dir .]
 Exit:   0 clean, 1 broken references found
 """
 from __future__ import annotations
 
-import argparse
 import re
 import sys
 from pathlib import Path
 
 DOCS = {
-    "-01": "STD-ARCH-HLD-01-Framework.md",
-    "-02": "STD-ARCH-HLD-02-Templates.md",
-    "-03": "STD-ARCH-HLD-03-Audit.md",
+    "-01": "STD-LIMEN-01-Framework.md",
+    "-02": "STD-LIMEN-02-Templates.md",
+    "-03": "STD-LIMEN-03-Audit.md",
 }
 
 # A `§` preceded by one of these belongs to an external document.
@@ -50,20 +49,17 @@ def rule_ids(text: str) -> set[str]:
     return out
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--dir", default=".", type=Path)
-    args = ap.parse_args()
-
+def run(directory: Path) -> int:
+    """Validate every internal section and rule citation. Returns an exit code."""
     texts, missing_files = {}, []
     for key, name in DOCS.items():
-        path = args.dir / name
+        path = Path(directory) / name
         if path.exists():
             texts[key] = path.read_text(encoding="utf-8")
         else:
             missing_files.append(name)
     if missing_files:
-        print(f"check-xrefs: not found: {', '.join(missing_files)}", file=sys.stderr)
+        print(f"limen xrefs: not found: {', '.join(missing_files)}", file=sys.stderr)
         return 1
 
     anchors = {k: headings(t) for k, t in texts.items()}
@@ -100,7 +96,3 @@ def main() -> int:
     print(f"{len(unique)} broken reference(s) across {len(texts)} documents "
           f"({total} section anchors, {len(rules)} rules)")
     return 1 if unique else 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())

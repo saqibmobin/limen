@@ -1,4 +1,4 @@
-"""Thin, cached wrapper over the git plumbing commands hldcheck needs.
+"""Thin, cached wrapper over the git plumbing commands limen needs.
 
 All access is read-only and addressed by revision, so the working tree can be
 dirty without affecting results.

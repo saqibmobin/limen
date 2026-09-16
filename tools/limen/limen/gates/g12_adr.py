@@ -1,6 +1,6 @@
 """G12 — ADR externality.
 
-STD-ARCH-HLD-01 A-1: the HLD *references* decisions, it does not *contain* them.
+STD-LIMEN-01 A-1: the HLD *references* decisions, it does not *contain* them.
 HLDs get rewritten; decision records must not be, because their value is the
 record of what was true and considered at the time.
 
@@ -114,7 +114,7 @@ def _check_files(gate: GateResult, adrs: dict) -> int:
         if not info["has_front"]:
             invalid += 1
             gate.fail(f"{adr_id} has no YAML front matter; MADR format is required "
-                      "(STD-ARCH-HLD-02 §8)", file=rel)
+                      "(STD-LIMEN-02 §8)", file=rel)
             continue
         front = info["front"]
         if front.get("_invalid"):

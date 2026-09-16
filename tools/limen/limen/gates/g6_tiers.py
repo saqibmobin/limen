@@ -1,7 +1,7 @@
 """G6 — tier tagging.
 
 Every normative claim carries `[T0]`/`[T1]`/`[T2]`/`[T3]`. Tagging is what makes
-the audit mechanical rather than interpretive (STD-ARCH-HLD-01 T-3).
+the audit mechanical rather than interpretive (STD-LIMEN-01 T-3).
 
 "Normative" cannot be decided perfectly by regex, so this gate targets the claims
 that actually matter and leaves ordinary explanatory prose alone:
@@ -69,7 +69,7 @@ def run(docs: DocSet, strict: bool = False) -> GateResult:
                 bad_t1 += 1
                 gate.fail("[T1] claim has no provenance pointer, ADR reference or "
                           "external-standard citation; verified fact means "
-                          "verifiable (STD-ARCH-HLD-01 §4)",
+                          "verifiable (STD-LIMEN-01 §4)",
                           file=u.file, line=u.line,
                           detail={"kind": u.kind, "text": text[:160]})
 
@@ -121,7 +121,7 @@ def _check_tables(gate: GateResult, docs: DocSet) -> int:
             continue
         missing += 1
         gate.fail("table states grounded claims but has no Tier column; every "
-                  "normative table needs one (STD-ARCH-HLD-01 T-3)",
+                  "normative table needs one (STD-LIMEN-01 T-3)",
                   file=t.file, line=t.line,
                   detail={"headers": t.headers})
     return missing

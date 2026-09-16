@@ -1,9 +1,10 @@
 # Engineering Standard: Agent-Authored HLD — Templates & Schemas
 
-**Document Reference:** `STD-ARCH-HLD-02`
-**Version:** 4.0.0
+**Document Reference:** `STD-LIMEN-02`
+**Version:** 5.0.0
 **Status:** Canonical
-**Companions:** `STD-ARCH-HLD-01-Framework.md` (process), `STD-ARCH-HLD-03-Audit.md` (audit)
+**Supersedes:** `STD-ARCH-HLD-02` v4.0.0 (identical content; renamed to Limen)
+**Companions:** `STD-LIMEN-01-Framework.md` (process), `STD-LIMEN-03-Audit.md` (audit)
 
 Every template below is normative in **shape** (columns, required fields, IDs) and
 illustrative in **content**. Example rows are marked `<!-- example -->` and must be
@@ -498,7 +499,7 @@ agent credential has a different compromise profile (`A-6`) than a user session.
 
 **Rule.** A contract with an autonomous-agent consumer whose errors are
 prose-only, or whose schema is hand-maintained with no drift control, is a
-finding in C6 (`STD-ARCH-HLD-03` §7). Record it as a risk rather than omitting it.
+finding in C6 (`STD-LIMEN-03` §7). Record it as a risk rather than omitting it.
 
 ---
 

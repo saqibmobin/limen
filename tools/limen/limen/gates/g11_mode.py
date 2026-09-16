@@ -29,7 +29,7 @@ def run(docs: DocSet, strict: bool = False) -> GateResult:
 
     if not mode:
         gate.fail("no `mode` in front matter; mode determines which sections are "
-                  "required and how evidence is judged (STD-ARCH-HLD-01 §1)")
+                  "required and how evidence is judged (STD-LIMEN-01 §1)")
         gate.detail = "no mode declared"
         return gate
 
@@ -96,7 +96,7 @@ def _brownfield_change(gate: GateResult, docs: DocSet, strict: bool) -> dict:
     migration = _has_migration_section(docs)
     if not migration:
         gate.fail("brownfield-change mode requires L3.8 Migration & decommission; "
-                  "no such section found (STD-ARCH-HLD-01 §3.7.2)")
+                  "no such section found (STD-LIMEN-01 §3.7.2)")
     else:
         _check_delta_table(gate, docs)
 
@@ -141,4 +141,4 @@ def _check_delta_table(gate: GateResult, docs: DocSet) -> None:
                           file=t.file, line=t.line)
             return
     gate.warn("no as-is/to-be delta table found in the migration section "
-              "(STD-ARCH-HLD-02 §20.1)")
+              "(STD-LIMEN-02 §20.1)")
