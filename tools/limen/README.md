@@ -1,10 +1,27 @@
 # limen
 
-Validator for the agent-authored HLD standard (`STD-LIMEN-01/02/03`).
+**What it is.** A command-line validator for architecture documents written
+against the Limen standard (`STD-LIMEN-01/02/03`).
 
-It turns the automatable hard gates in `STD-LIMEN-03` §5 from prose into a
-build step. Without it, "grounded in code" is an aspiration; with it, a claim
-that no longer resolves fails CI.
+**What it does.** It reads a High-Level Design and checks twelve things a
+reviewer cannot check by eye: that every claim about the code still resolves at
+the commit it was written against, that quoted limits still match the source,
+that diagrams render and name the same things the prose does, that every
+stakeholder concern is addressed somewhere, that proposals are labelled as
+proposals, and that nobody has quietly overwritten a human's edits. It exits
+non-zero when any of that is untrue.
+
+**Why it exists.** An agent asked to write an HLD produces something complete,
+confident, well-formatted and substantially untrue. It infers components from
+imports, asserts trade-offs it never evaluated, and describes planned behaviour
+in the present tense. Prose review does not catch this reliably, and the
+document decays further every time the code moves underneath it. `limen` makes
+those failures mechanical: a claim that no longer resolves fails CI, the same
+way a broken test does.
+
+*Limen* is Latin for threshold. The tool decides what crosses one: verified
+claim or guess, gate passed or failed, code that still matches its description
+or code that has moved.
 
 **Status:** all twelve hard gates implemented.
 
@@ -22,10 +39,10 @@ python3 tools/limen/bin/limen check --docs docs/architecture --repo .
 `lmn`. Either works, from anywhere:
 
 ```bash
-# option A — add bin/ to PATH (gets you both names)
+# option A: add bin/ to PATH (gets you both names)
 export PATH="$PWD/tools/limen/bin:$PATH"
 
-# option B — symlink one name into a directory already on PATH
+# option B: symlink one name into a directory already on PATH
 ln -s "$PWD/tools/limen/bin/limen" ~/.local/bin/lmn
 
 limen check --docs docs/architecture --repo .
@@ -33,9 +50,10 @@ lmn check --docs docs/architecture --repo .      # identical
 ```
 
 The entry script resolves its package through `realpath`, so a symlink from
-anywhere works. `lmn` is a typing convenience only — **written surfaces use
-`limen` in full** (see BRAND.md §6.5). If `lmn` collides with something already
-on your PATH, symlink a different name; nothing depends on it.
+anywhere works. `lmn` is a typing convenience only. **Written surfaces use
+`limen` in full**, so that grepping for `limen` finds every invocation. If `lmn`
+collides with something already on your PATH, symlink a different name; nothing
+depends on it.
 
 Diagram rendering (G2) additionally needs mermaid-cli. It is discovered in this
 order: `--mmdc`, `$MMDC`, `mmdc` on `PATH`, then `npx -p @mermaid-js/mermaid-cli mmdc`.
@@ -61,7 +79,7 @@ Without it G2 still runs its static lint and reports the render step as skipped.
 ### Deterministic vs heuristic
 
 Most checks are fully deterministic and always fail. Four are necessarily
-heuristic — they **warn by default and fail under `--strict`**: G3's fuzzy
+heuristic, and they **warn by default and fail under `--strict`**: G3's fuzzy
 near-duplicate band, G6's quantity-without-tag scan, and the tense checks in G7
 and G11. Every gate's deterministic checks fail regardless of `--strict`.
 
@@ -76,14 +94,14 @@ low-durability pointers are reported:
 
 | Layer | Handles |
 | :--- | :--- |
-| `structured` | YAML/JSON path walk — `spec.template.spec.containers[0].resources` |
+| `structured` | YAML/JSON path walk, e.g. `spec.template.spec.containers[0].resources` |
 | `declaration` | Language-aware patterns for Go, Python, TS/JS, Rust, Java, SQL, proto, Terraform, shell |
-| `identifier` | Bare identifier match — **warns**, because it is not a declaration |
-| `line-range` | `#L10-L45` fallback — **warns**, because line numbers rot |
+| `identifier` | Bare identifier match. **Warns**, because it is not a declaration |
+| `line-range` | `#L10-L45` fallback. **Warns**, because line numbers rot |
 
 `--strict` promotes those warnings to failures. Tree-sitter would improve the
-`declaration` layer; the current patterns are dependency-free and fail closed —
-a miss is reported, never guessed.
+`declaration` layer; the current patterns are dependency-free and fail closed,
+so a miss is reported, never guessed.
 
 ## Usage
 
@@ -112,7 +130,7 @@ limen stamp --docs docs/architecture
 ### `--stamp` is an authoring step, not a fix
 
 It recomputes `agent:begin` hashes in place. Run it immediately after writing an
-agent block. **Never run it to clear a G10 mismatch** — a mismatch means a human
+agent block. **Never run it to clear a G10 mismatch.** A mismatch means a human
 edited agent-owned content, and `STD-LIMEN-01` U-2 says to promote that block
 to `human:` ownership and raise a `Q-nn`. Stamping over it destroys exactly the
 edit the gate exists to protect.
@@ -169,6 +187,33 @@ about grounding claims is a bad look.
 limen xrefs     # exit 1 on a broken reference
 ```
 
+## Conventions for maintainers
+
+**Limen is the standard; HLD is the artifact it governs.** That is why the
+front-matter `doc: hld` key and `HLD-<slug>` document ids did not change when
+the project was renamed. The document type is still a High-Level Design.
+
+**Capitalisation carries meaning:** `limen` is the command and the Python
+package, `Limen` is the standard in prose, `LIMEN` appears only inside document
+ids such as `STD-LIMEN-01`.
+
+**Do not rename these.** They are the standard's vocabulary, not the tool's
+branding, and they are referenced across the documents, the validator, the audit
+record format and CI:
+
+| Identifier | Occurrences | Referenced by |
+| :--- | ---: | :--- |
+| Tier tags `[T0]`–`[T3]` | 191 | G6, G7, G8, G11; the evidence model |
+| Gate ids `G1`–`G12` | 293 | CLI `--gates`, audit records, CI |
+| Rule ids (`M-1`, `T-3`, `U-2`, `V-9`, `D-5`, …) | 46 | Cited across all three standards |
+| Register prefixes `C-` `K-` `QA-` `Q-` `R-` `FF-` `ADR-` | 93+ | G4, G5, G8, G12 |
+| Front matter `doc: hld`, `id: HLD-<slug>` | 6 | G9 |
+| Exit codes 0/1/2/3 | n/a | CI contracts |
+| Section ids `L0.1`–`L3.10` | n/a | G4 concern framing |
+
+A blanket rename across this repo will silently break the gates that depend on
+them. The 12 gates are the enforcement; these ids are what they enforce against.
+
 ## Tests
 
 ```bash
@@ -176,9 +221,9 @@ python3 tools/limen/tests/run_tests.py          # 75 assertions
 python3 tools/limen/tests/run_tests.py -k drift --keep
 ```
 
-The suite builds a throwaway git repo and two HLD document sets — one clean
+The suite builds a throwaway git repo and two HLD document sets: one clean
 (which must pass all twelve gates, including under `--strict`), one seeded with a
-violation of every gate — then asserts on gate status, stats and exit codes.
+violation of every gate. It then asserts on gate status, stats and exit codes.
 Fixtures live in `tests/fixtures.py`. Requires mermaid-cli for the G2 assertions.
 
 ## Layout
@@ -191,7 +236,7 @@ limen/
 ├── gitio.py              cached git plumbing (read-only, revision-addressed)
 ├── resolver.py           layered symbol resolution + literal verification
 ├── report.py             text / json / sarif renderers
-├── xrefs.py              `limen xrefs` — standards cross-reference checker
+├── xrefs.py              `limen xrefs`, standards cross-ref checker
 ├── model.py              GateResult, Item, status vocabulary
 └── gates/
     ├── g1_provenance.py     g7_proposals.py
@@ -204,5 +249,5 @@ limen/
 
 Adding a gate: implement `run(docs, ...) -> GateResult` in `gates/`, add its id
 to `IMPLEMENTED` in `cli.py`, and wire the call. Gates read the shared primitives
-on `DocSet` — `sections()`, `units()`, `tables()`, `pointers()`, `diagrams()`,
-`diagram_elements()`, `blocks()`, `adr_refs()` — rather than re-parsing markdown.
+on `DocSet` (`sections()`, `units()`, `tables()`, `pointers()`, `diagrams()`,
+`diagram_elements()`, `blocks()`, `adr_refs()`) rather than re-parsing markdown.

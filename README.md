@@ -1,4 +1,14 @@
-# Agent-Authored HLD Standard — Start Here
+# Limen: Start Here
+
+Limen is a standard for architecture documents written by agents, plus a
+validator that enforces it. Every factual claim is anchored to a commit and
+re-checkable, uncertainty has a first-class place to live instead of being
+quietly upgraded into a fact, and drift between the document and the code is
+detected mechanically rather than noticed by accident.
+
+*Limen* is Latin for threshold. The standard is about what crosses one:
+verified claim or guess, gate passed or failed, code that still matches its
+description or code that has moved.
 
 Four artifacts. Three documents and a validator.
 
@@ -7,10 +17,10 @@ Four artifacts. Three documents and a validator.
 | [`STD-LIMEN-01-Framework.md`](STD-LIMEN-01-Framework.md) | 676 | **Process.** Modes, levels L0–L3, gates, evidence tiers, provenance format, discovery protocol, update mode, diagram rules | Authoring agent, every run |
 | [`STD-LIMEN-02-Templates.md`](STD-LIMEN-02-Templates.md) | 808 | **Shapes.** Every section template, register schema, ADR format, required table columns | Authoring agent, one section at a time |
 | [`STD-LIMEN-03-Audit.md`](STD-LIMEN-03-Audit.md) | 541 | **Judgment.** Tailoring profiles, scoring, auditor protocol, hard gates | Auditor agent only |
-| [`tools/limen/`](tools/limen/README.md) | — | **Enforcement.** Validates all twelve hard gates mechanically | CI, and the agent before presenting |
+| [`tools/limen/`](tools/limen/README.md) | n/a | **Enforcement.** Validates all twelve hard gates mechanically | CI, and the agent before presenting |
 
-The split is not cosmetic. An agent authoring L2 needs `-01` §3.6 and `-02` §11–14 —
-about 200 lines — not 2,000. And the auditor must **never** load the authoring
+The split is not cosmetic. An agent authoring L2 needs `-01` §3.6 and `-02` §11–14,
+about 200 lines, not 2,000. And the auditor must **never** load the authoring
 context, which is why judgment lives in its own file (`-03` §4.1).
 
 ---
@@ -34,7 +44,7 @@ every authoring phase.
 
 ---
 
-## 2. Authoring an HLD — the agent's loop
+## 2. Authoring an HLD: the agent's loop
 
 ### First run in a repository
 
@@ -62,7 +72,7 @@ At each level the agent:
 2. **Stamps** block hashes: `limen stamp --docs docs/architecture`
 3. **Validates**: `limen check --docs docs/architecture --repo .`
 4. **Fixes** every gate failure. A gate failure means the document is not yet
-   reviewable — do not present it.
+   reviewable, so do not present it.
 5. **Presents** a summary plus the open questions raised at this level, and stops.
 
 The agent does not proceed to the next level until a human responds. That is the
@@ -93,7 +103,7 @@ python3 tools/limen/bin/limen check --docs docs/architecture --repo . --at HEAD
 
 Then follow `-01` §7.3:
 
-1. Read the drift report — `moved` / `missing` / `value-changed` per claim.
+1. Read the drift report: `moved` / `missing` / `value-changed` per claim.
 2. Re-pin `repo.commit`; record the old one under `supersedes`.
 3. **Repair only what drifted.** Do not regenerate clean sections; churn buries
    the real change in diff noise.
@@ -121,7 +131,7 @@ Withhold the authoring transcript, plan, and notes.
 
 The auditor must do more than read (`-03` §4.2): sample ≥10 provenance pointers,
 attempt to **falsify** the three load-bearing `[T2]` claims, recompute the
-timeout and sizing arithmetic, and run the silence audit — what a reader in each
+timeout and sizing arithmetic, and run the silence audit: what a reader in each
 stakeholder role needs and cannot find.
 
 Output is `docs/architecture/audits/<date>-<version>.yaml` (`-03` §11).
@@ -139,12 +149,12 @@ The gates are worthless if the answer is always "approved, continue."
 | Gate | What you are actually deciding | The question that catches most errors |
 | :--- | :--- | :--- |
 | **0** Intake | Is the mode right, are the constraints real, is the profile right? | *"What constraint did you not find, and did you ask or assume?"* |
-| **1** Foundations | Are these the quality attributes we care about, in this order? | *"Show me the conflict set — which scenario loses, and who agreed to that?"* |
+| **1** Foundations | Are these the quality attributes we care about, in this order? | *"Show me the conflict set. Which scenario loses, and who agreed to that?"* |
 | **2** Mechanics | Do the contracts and data semantics match reality? | *"Which claim here would you least like to be wrong about?"* |
 | **3** Audit | Is the document fit to review? | *"What did the falsification attempts find?"* |
 
 At Gate 0 and Gate 1, also read the Open Questions register. **An empty one is a
-red flag, not a clean bill of health** — it means the agent had nowhere it was
+red flag, not a clean bill of health.** It means the agent had nowhere it was
 willing to admit uncertainty. Healthy is 5–20 at L0, declining across gates.
 
 ---
@@ -159,7 +169,7 @@ Paste into the repo's `CLAUDE.md` (or the equivalent for your agent):
 HLDs in this repo follow `docs/standards/STD-LIMEN-01-Framework.md`.
 
 When asked to create or update an HLD:
-1. Read STD-LIMEN-01 §11 (operating rules) first — always.
+1. Read STD-LIMEN-01 §11 (operating rules) first, always.
 2. Load only the phase you are in; see the context load map in the standards README.
 3. Never one-shot all levels. Present L0, stop, and wait.
 4. Before presenting anything, run:
@@ -168,7 +178,7 @@ When asked to create or update an HLD:
 5. Never self-audit. The audit is a separate invocation (STD-LIMEN-03 §4.1).
 ```
 
-For updates, trigger on the drift check rather than on a schedule — run
+For updates, trigger on the drift check rather than on a schedule. Run
 `limen check --at HEAD` in CI (advisory on code PRs, blocking on HLD PRs) and let
 exit code 3 open the ticket. That is fitness function `FF-07`.
 
@@ -181,8 +191,8 @@ not that, and a standard that produces 80 pages for a cron job will be ignored.
 
 For `P1-internal-tool` or `P5-library-sdk`, a legitimate HLD is a **single file**
 with: front matter, concerns, constraints, 3–5 quality scenarios, 2–4 ADRs, one
-C4 L2 diagram, the contract catalogue, and the RAID log. The registers stay —
-they are the traceability backbone and they are cheap — but the deep-dive
+C4 L2 diagram, the contract catalogue, and the RAID log. The registers stay,
+because they are the traceability backbone and they are cheap, but the deep-dive
 sections collapse to a paragraph each.
 
 The tailoring profile (`-03` §2) is the mechanism; a category weighted `0` is
@@ -199,7 +209,7 @@ its most likely failure mode in practice.
 - [ ] Copy these three standards into `docs/standards/`
 - [ ] Add the `CLAUDE.md` block from §6
 - [ ] Add the CI workflow from [`tools/limen/README.md`](tools/limen/README.md#ci)
-      — **with `fetch-depth: 0`**, or G1 cannot reach the baseline commit
+      (**with `fetch-depth: 0`**, or G1 cannot reach the baseline commit)
 - [ ] Run L0 on the repo and read the Open Questions before anything else
 
 ---
