@@ -19,10 +19,6 @@ document decays further every time the code moves underneath it. `limen` makes
 those failures mechanical: a claim that no longer resolves fails CI, the same
 way a broken test does.
 
-*Limen* is Latin for threshold. The tool decides what crosses one: verified
-claim or guess, gate passed or failed, code that still matches its description
-or code that has moved.
-
 **Status:** all twelve hard gates implemented.
 
 ## Install
