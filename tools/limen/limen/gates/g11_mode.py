@@ -141,4 +141,4 @@ def _check_delta_table(gate: GateResult, docs: DocSet) -> None:
                           file=t.file, line=t.line)
             return
     gate.warn("no as-is/to-be delta table found in the migration section "
-              "(STD-LIMEN-02 §22.1)")
+              "(STD-LIMEN-02 §23.1)")

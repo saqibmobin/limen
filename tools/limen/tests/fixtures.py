@@ -380,7 +380,9 @@ as `traded_against` entries. Constraints `K-01`, `K-02` and `K-03` apply.
 <!-- frames: C-03 -->
 
 The `ingest-api` container terminates tenant traffic and hands work to the
-`ingest-worker` container, which writes to object storage `[T2]`.
+`ingest-worker` container, which writes to object storage `[T2]`. Naming the
+`object
+storage` across a line break must still count as a prose mention.
 
 <!-- c4: level=2 -->
 

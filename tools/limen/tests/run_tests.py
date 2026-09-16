@@ -92,6 +92,9 @@ def test_clean(work: Path, repo: Path, baseline: str) -> None:
     check("clean: G1 resolved every pointer",
           stats.get("resolved") == stats.get("total") and stats.get("total", 0) >= 7,
           json.dumps(stats))
+    check("clean: G3 tolerates an element name split across a line break",
+          gate(payload, "G3").get("stats", {}).get("absent_from_prose") == 0,
+          summaries(gate(payload, "G3")))
     check("clean: G3 checked C4 containment",
           gate(payload, "G3").get("stats", {}).get("containment_checked") is True,
           json.dumps(gate(payload, "G3").get("stats")))

@@ -40,7 +40,7 @@ is the reason agents skim standards.
 | **Foundations (L1)** | `-01` §3.3–3.5, §4, §5, §9 · `-02` §7–§10 | ~340 |
 | **Mechanics (L2)** | `-01` §3.6 · `-02` §12–§14 | ~260 |
 | **Ops & evolution (L3)** | `-01` §3.7 · `-02` §17–§22 | ~250 |
-| **Update run** | `-01` §5, §7 · `-02` §25 · limen drift output | ~150 |
+| **Update run** | `-01` §5, §7 · `-02` §26 · limen drift output | ~150 |
 | **Audit** | `-03` entire · `-01` §4, §5 · **not** `-01` §3 or `-02` | ~600 |
 
 `-01` §11 (the operating rules card, 20 lines) is worth keeping resident across

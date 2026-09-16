@@ -13,6 +13,14 @@ deleted from real documents.
 Legend for column headers used throughout: `Tier` is the evidence tag from `-01` §4;
 `Evidence` is a provenance pointer per `-01` §5.
 
+**When a section gets a template.** A section is templated here when it has
+required structure that a gate or the audit rubric checks, or a specific and
+predictable way of being done badly. Sections whose shape is self-evident, such
+as a glossary or an ownership map, are left to the prose guidance in `-01` and
+the substance criteria in `-03`. Templates that restate an obvious shape make
+this document heavier without making any HLD better, so the absence of a template
+is a decision rather than an omission.
+
 ---
 
 ## 1. Mode declaration (L0.1)
@@ -925,9 +933,75 @@ A deletion story that stops at the primary database is not a deletion story.
 
 ---
 
-## 22. Migration & decommission (L3.8, `brownfield-change` only)
+## 22. Deployment, rollout and rollback (L3.6)
 
-### 22.1 Delta table
+Two things belong here that are routinely assumed rather than designed: the order
+in which a schema change and a code change may safely reach production, and
+whether the rollback path has ever been executed.
+
+### 22.1 Rollout stages
+
+| Stage | Traffic | Gate to advance | Rollback trigger | Minimum soak | Tier |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| Canary | 1 pod, about 3% | Error rate within budget; `p95` within `SLO-02` | Any `SLO-01` burn above 2x | 30 min | `[T1]` |
+| Partial | 25% | No new alert classes; `pending` backlog flat | Backlog rising for 10 min | 2 h | `[T1]` |
+| Full | 100% | Both prior gates held | Manual, on call judgement | 24 h before the next change | `[T1]` |
+<!-- example rows — delete -->
+
+State what advances a stage and what reverses it. A rollout plan naming only the
+percentages describes a schedule, not a decision procedure.
+
+### 22.2 Expand and contract
+
+A schema change and the code that depends on it cannot deploy together without a
+window where one is ahead of the other. Expand/contract removes that window by
+never having the two depend on each other simultaneously.
+
+| Step | Schema | Code | Reversible | Notes | Tier |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| 1. Expand | Add `region` nullable, no constraint | unchanged | Yes: drop the column | Old code ignores a column it never reads | `[T1]` |
+| 2. Backfill | none | one-off job, batched | Yes: values unused | Bound the batch so it does not contend with the write path | `[T1]` |
+| 3. Dual-write | none | writes both old and new | Yes: feature flag off | Reconciliation query must be clean for 7 d before step 4 | `[T1]` |
+| 4. Read new | none | reads new, still writes both | Yes: flag off | The first step where a revert is user-visible | `[T1]` |
+| 5. Contract | Drop old column; add `NOT NULL` | writes new only | **No** | One-way door. Requires steps 1-4 held at 100% for 30 d | `[T1]` |
+<!-- example rows — delete -->
+
+**Rule.** Mark the one-way door explicitly. Every expand/contract plan has exactly
+one step after which rollback stops being possible, and the plan is worth little
+if the reader has to work out which one it is.
+
+### 22.3 Rollback
+
+| Property | Value | Evidence | Tier |
+| :--- | :--- | :--- | :--- |
+| Mechanism | Redeploy previous image; flags off | `deploy/rollback.sh@a1b2c3d` | `[T1]` |
+| Time to execute | 4 min measured | Drill 2026-08-14 | `[T1]` |
+| Last exercised | 2026-08-14, staging, successful | Drill record | `[T1]` |
+| Data written during the bad window | Retained; schema is backward compatible through step 4 | | `[T2]` |
+| Irreversible after | Step 5 of the expand/contract table above | | `[T1]` |
+<!-- example rows — delete -->
+
+**Rule.** An untested rollback is a hypothesis. Record when it was last executed
+and what happened. "Rollback: redeploy the previous version" with no date is the
+single most common piece of fiction in this section, because it is true of every
+system right up to the moment it is needed.
+
+### 22.4 Rules
+
+- **Name the one-way door.** See §22.2.
+- **Every rollback claim carries a date.** If it has never been exercised, say so
+  and record it as a risk rather than implying otherwise.
+- **Rollback and revert are different.** Rollback returns the code; it does not
+  unwrite data. State what happens to rows written during the bad window.
+- **Health gates are numeric and tied to an SLO.** "Looks healthy" is not a gate.
+- A deployment section with no rollback trigger has described how to ship, not
+  how to operate.
+
+---
+
+## 23. Migration & decommission (L3.8, `brownfield-change` only)
+
+### 23.1 Delta table
 
 | As-is | To-be | Class | Sections affected | Revertible |
 | :--- | :--- | :--- | :--- | :--- |
@@ -936,7 +1010,7 @@ A deletion story that stops at the primary database is not a deletion story.
 | `ingest-gc` (hourly cron) | `ingest-gc` (per-region) | modified | L2.1 | Yes |
 | `pkg/legacy/replicator` | — | **removed** | L2.1 | No, after step 6 |
 
-### 22.2 Increment sequencing (strangler fig)
+### 23.2 Increment sequencing (strangler fig)
 
 | # | Increment | Ships independently | Revert path | Revert expires | Exit criterion |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -947,7 +1021,7 @@ A deletion story that stops at the primary database is not a deletion story.
 | 5 | Promote eu-central-1 to accept writes | Yes | Route all to eu-west | 7 d | `FF-02` passes both regions |
 | 6 | Decommission `pkg/legacy/replicator` | — | **None** | — | Zero traffic 30 d |
 
-### 22.3 Data migration
+### 23.3 Data migration
 
 State the dual-write window, backfill strategy and throughput, the reconciliation
 check (what query proves both sides agree), cutover criteria, and what happens to
@@ -955,7 +1029,7 @@ in-flight writes during cutover.
 
 ---
 
-## 23. RAID log (L3.9)
+## 24. RAID log (L3.9)
 
 Decisions deliberately excluded — they live in ADRs (`-01` Rule A-1).
 
@@ -969,7 +1043,7 @@ Decisions deliberately excluded — they live in ADRs (`-01` Rule A-1).
 
 Types: `R` Risk, `I` Issue, `A` Assumption, `D` Dependency.
 
-### 23.1 Technical debt register
+### 24.1 Technical debt register
 
 | ID | Debt | Incurred by | Interest (ongoing cost) | Principal (cost to fix) | Pay-down trigger |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -977,7 +1051,7 @@ Types: `R` Risk, `I` Issue, `A` Assumption, `D` Dependency.
 
 ---
 
-## 24. Roadmap (L3.10)
+## 25. Roadmap (L3.10)
 
 Phases with **trigger conditions**, not dates. Dates in an architecture document
 are wrong within a quarter; triggers stay true.
@@ -990,7 +1064,7 @@ are wrong within a quarter; triggers stay true.
 
 ---
 
-## 25. Section header convention
+## 26. Section header convention
 
 Every section carries its ID, concern framing, and (where relevant) mode marker:
 

@@ -39,7 +39,7 @@ changelog:
 
 # Limen Validator: High-Level Design
 
-<!-- agent:begin id="L1" hash="sha256:1802c72abded5fecf6d66683991077f9ac6b0bfda323a5d6bff807d560467db0" -->
+<!-- agent:begin id="L1" hash="sha256:b7ecc50fcaeeedf1baa2004280c404187a7ba4ade651d11b4b75b76077468504" -->
 A worked example. This document describes `limen` itself, in `brownfield-asis`
 mode, and it passes all twelve gates. Read it beside `STD-LIMEN-02` to see what
 each template looks like once filled in.
@@ -60,6 +60,30 @@ The conflict set is the interesting part, because two pairs genuinely compete:
 That second decision is visible in the code: the strictness flag is threaded into
 every gate rather than being decided per gate `[T1]`
 (`tools/limen/limen/cli.py@9a5b391::IMPLEMENTED`).
+
+## L1.8 System context
+<!-- frames: C-01, C-03 -->
+
+The **limen validator** sits between the person or agent writing a document and
+the repository that document describes. It is invoked by an **HLD author** during
+authoring and by a **CI pipeline** on every pull request, reads the **target
+repository** through git, and shells out to **mermaid-cli** to prove diagrams
+render.
+
+<!-- c4: level=1 -->
+
+```mermaid
+graph TD
+    AUTHOR["HLD author"] --> SYS["limen validator"]
+    CI["CI pipeline"] --> SYS
+    SYS --> REPO["target repository"]
+    SYS --> MMDC["mermaid-cli"]
+```
+
+Nothing else crosses the boundary. There is no network call, no telemetry and no
+state kept between runs beyond the render cache, which is why the tool can run in
+an air-gapped review environment `[T1]`
+(`tools/limen/limen/gates/g2_diagrams.py@9a5b391::CACHE_NAME`).
 
 ## L1.9 Container topology
 <!-- frames: C-04 -->

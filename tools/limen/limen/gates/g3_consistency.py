@@ -184,16 +184,18 @@ def _check_near_duplicates(gate, docs, elements, strict) -> int:
 
 
 def _check_prose_presence(gate, docs, elements, strict) -> int:
-    prose = "\n".join(
+    # Whitespace is collapsed before matching: prose wraps, and an element name
+    # split across a line break is still present to a reader.
+    prose = re.sub(r"\s+", " ", " ".join(
         line for f in docs.files
         for n, line in enumerate(f.lines, 1)
         if not f.fenced(n - 1)
-    )
+    ))
     absent = 0
     for name, d in {n: d for n, d in elements}.items():
         if name.lower() in GENERIC or len(name) < 4:
             continue
-        if name in prose:
+        if re.sub(r"\s+", " ", name) in prose:
             continue
         absent += 1
         report = gate.fail if strict else gate.warn
