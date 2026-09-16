@@ -1,7 +1,7 @@
 # Engineering Standard: Agent-Authored HLD — Framework & Process
 
 **Document Reference:** `STD-LIMEN-01`
-**Version:** 5.2.0
+**Version:** 5.3.0
 **Status:** Canonical
 **Supersedes:** `STD-ARCH-HLD-01` v4.0.0 (renamed to Limen; §7.2 adds the greenfield-to-brownfield re-baseline trigger in 5.1.0)
 **Also supersedes:** `STD-ARCH-LLM-HLD-002` v3.0.0 (single-file Progressive Multi-Level Standard)
@@ -359,6 +359,11 @@ neither is a wish, and the audit treats it as noise.
 **Rule T-3.** Tier tags appear at the claim level for tables (a `Tier` column)
 and at paragraph or bullet level for prose. An untagged normative claim fails
 hard gate G6.
+
+Prose that *discusses* a tag rather than carrying one names it in words, as
+"Tier 1", not as the bracketed token. The validator cannot distinguish use from
+mention, so a sentence explaining what `[T1]` means is read as a Tier 1 claim and
+will be asked for provenance it does not have.
 
 **Rule T-4 (anti-laundering).** A `[T2]` synthesis may not introduce a factual
 claim absent from its supporting `[T1]` set. "The service uses a worker pool

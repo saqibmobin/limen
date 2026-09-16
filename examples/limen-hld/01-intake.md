@@ -39,7 +39,7 @@ changelog:
 
 # Limen Validator: High-Level Design
 
-<!-- agent:begin id="L1" hash="sha256:b7ecc50fcaeeedf1baa2004280c404187a7ba4ade651d11b4b75b76077468504" -->
+<!-- agent:begin id="L1" hash="sha256:4c2442417f88bc67cf784c1eb7c88f19d6ac0d1ca79cda03d5d7aa4c47cd4296" -->
 A worked example. This document describes `limen` itself, in `brownfield-asis`
 mode, and it passes all twelve gates. Read it beside `STD-LIMEN-02` to see what
 each template looks like once filled in.
@@ -65,10 +65,11 @@ every gate rather than being decided per gate `[T1]`
 <!-- frames: C-01, C-03 -->
 
 The **limen validator** sits between the person or agent writing a document and
-the repository that document describes. It is invoked by an **HLD author** during
-authoring and by a **CI pipeline** on every pull request, reads the **target
-repository** through git, and shells out to **mermaid-cli** to prove diagrams
-render.
+the repository that document describes. Today it is invoked by an **HLD author**
+during authoring; it will also be invoked by a **CI pipeline** on every pull
+request once the repository gains a remote `[T3]`, owner @maintainer, trigger:
+repository gains a remote. It reads the **target repository** through git, and
+shells out to **mermaid-cli** to prove diagrams render.
 
 <!-- c4: level=1 -->
 
