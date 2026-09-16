@@ -136,7 +136,7 @@ The auditor does not read and opine. It verifies.
    checklist and is the auditor's highest-value contribution.
 4. **Tier spot-check.** Sample 10 claims and verify tier assignment. A `[T2]`
    that introduces an unsourced fact is a Rule T-4 violation (`-01` §4).
-5. **Budget arithmetic.** Recompute the timeout/retry budget (`-02` §14.2) and
+5. **Budget arithmetic.** Recompute the timeout/retry budget (`-02` §15.2) and
    the sizing derivations (`-02` §10). Arithmetic errors are common and mechanical
    to catch.
 6. **Diagram–prose consistency.** For each diagram, check that the prose
@@ -223,7 +223,7 @@ Exit codes: `0` all gates pass · `1` gate failure · `2` validator error ·
 | Open questions | G8 | Cross-ref `[T0]` ↔ `open-questions.yaml`; assert count > 0 at L0 |
 | Block ownership | G10 | Recompute SHA-256 of each `agent:` block; compare to recorded hash |
 | ADR externality | G12 | Every `ADR-nnn` referenced resolves to a file with valid MADR front matter |
-| Budget arithmetic | — (advisory) | Parse `-02` §14.2 table, assert `Σ downstream ≤ upstream` |
+| Budget arithmetic | — (advisory) | Parse `-02` §15.2 table, assert `Σ downstream ≤ upstream` |
 
 ### 6.3 Output
 
@@ -265,7 +265,7 @@ jobs:
 
 Recommended policy: **advisory on code PRs** (drift opens an issue / `Q-nn`),
 **blocking on HLD PRs**. Blocking on every code PR turns the standard into a tax
-and teams will route around it. This is fitness function `FF-07` in `-02` §15.
+and teams will route around it. This is fitness function `FF-07` in `-02` §17.
 
 ---
 
@@ -310,8 +310,8 @@ profile weight.
 - **S2** (30%): The **conflict set is real.** Scenario pairs genuinely in tension,
   with a stated winner and rationale. A conflict set where every attribute wins is
   not a conflict set — score 0.
-- **S3** (15%): Scenarios are traced downstream to SLOs (`-02` §16) and fitness
-  functions (`-02` §15). Orphan scenarios and ancestor-less SLOs both lose points.
+- **S3** (15%): Scenarios are traced downstream to SLOs (`-02` §18) and fitness
+  functions (`-02` §17). Orphan scenarios and ancestor-less SLOs both lose points.
 
 ### C4 — Decisions & alternatives *(elevated floor: 70%)*
 

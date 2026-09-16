@@ -23,7 +23,7 @@ Four artifacts. Three documents and a validator.
 | [`tools/limen/`](tools/limen/README.md) | n/a | **Enforcement.** Validates all twelve hard gates mechanically | CI, and the agent before presenting |
 | [`examples/limen-hld/`](examples/README.md) | 442 | **Exemplar.** A complete HLD that passes all twelve gates under `--strict`, describing limen itself | Read once before authoring |
 
-The split is not cosmetic. An agent authoring L2 needs `-01` §3.6 and `-02` §11–14,
+The split is not cosmetic. An agent authoring L2 needs `-01` §3.6 and `-02` §12–14,
 about 200 lines, not 2,000. And the auditor must **never** load the authoring
 context, which is why judgment lives in its own file (`-03` §4.1).
 
@@ -38,9 +38,9 @@ is the reason agents skim standards.
 | :--- | :--- | ---: |
 | **Intake (L0)** | `-01` §1, §2, §6 · `-02` §1–§6 · `-03` §2 | ~320 |
 | **Foundations (L1)** | `-01` §3.3–3.5, §4, §5, §9 · `-02` §7–§10 | ~340 |
-| **Mechanics (L2)** | `-01` §3.6 · `-02` §11–§14 | ~260 |
-| **Ops & evolution (L3)** | `-01` §3.7 · `-02` §15–§22 | ~250 |
-| **Update run** | `-01` §5, §7 · `-02` §23 · limen drift output | ~150 |
+| **Mechanics (L2)** | `-01` §3.6 · `-02` §12–§14 | ~260 |
+| **Ops & evolution (L3)** | `-01` §3.7 · `-02` §17–§22 | ~250 |
+| **Update run** | `-01` §5, §7 · `-02` §25 · limen drift output | ~150 |
 | **Audit** | `-03` entire · `-01` §4, §5 · **not** `-01` §3 or `-02` | ~600 |
 
 `-01` §11 (the operating rules card, 20 lines) is worth keeping resident across

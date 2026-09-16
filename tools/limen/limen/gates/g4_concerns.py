@@ -50,7 +50,7 @@ def run(docs: DocSet, strict: bool = False) -> GateResult:
 
     if not sections:
         gate.fail("no sections with `L<level>.<n>` ids found; G4 cannot map "
-                  "concerns to sections (STD-LIMEN-02 §23)")
+                  "concerns to sections (STD-LIMEN-02 §25)")
         gate.detail = "no identifiable sections"
         return gate
 

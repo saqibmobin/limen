@@ -1,7 +1,7 @@
 # Engineering Standard: Agent-Authored HLD — Templates & Schemas
 
 **Document Reference:** `STD-LIMEN-02`
-**Version:** 5.1.0
+**Version:** 5.2.0
 **Status:** Canonical
 **Supersedes:** `STD-ARCH-HLD-02` v4.0.0 (identical content; renamed to Limen)
 **Companions:** `STD-LIMEN-01-Framework.md` (process), `STD-LIMEN-03-Audit.md` (audit)
@@ -430,7 +430,83 @@ instances. Records as `R-04`.
 
 ---
 
-## 11. Interface & contract catalogue (L2.2)
+## 11. Component deep-dives (L2.1)
+
+The highest-volume section in most HLDs, and the one most likely to decay into a
+list of file paths. A component entry earns its place by answering what the
+reader cannot get from the code: what it is responsible for, what state it owns,
+and how it behaves when something it depends on fails.
+
+### 11.1 Component summary
+
+One row per component in the L2 container being decomposed.
+
+| Component | Responsibility (one sentence) | Owns | Concurrency | Provenance | Tier |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `upload handler` | Validates and admits a multipart upload | nothing; stateless | request-scoped, no shared mutables | `internal/ingest/handler.go@a1b2c3d::(*Handler).Upload` | `[T1]` |
+| `part store` | Durable custody of accepted parts | `uploads`, `parts` rows | one writer; row locks per upload | `internal/ingest/store.go@a1b2c3d::Store` | `[T1]` |
+| `reaper` | Reclaims parts orphaned by half-failed uploads | nothing; reads `uploads` | single goroutine, hourly tick | `internal/gc/sweep.go@a1b2c3d::sweepPending` | `[T1]` |
+<!-- example rows — delete -->
+
+<!-- c4: level=3 parent="ingest-api" -->
+
+```mermaid
+graph LR
+    H["upload handler"] --> S["part store"]
+    R["reaper"] --> S
+```
+
+The `parent` in the annotation names the L2 container this decomposes, and must
+exist in the L1 or L2 diagram. Gate G3 checks it.
+
+### 11.2 Per-component detail
+
+Repeat for each component that carries risk. A component whose entry would say
+nothing beyond its summary row does not need one.
+
+```markdown
+#### `part store`
+
+**Responsibility.** Durable custody of accepted parts, and the single writer of
+the `uploads` and `parts` tables `[T1]` (`internal/ingest/store.go@a1b2c3d::Store`).
+
+**Owned state.** `uploads`, `parts`. No other component writes them; the reaper
+reads them `[T1]` (`internal/gc/sweep.go@a1b2c3d::sweepPending`).
+
+**Concurrency.** One row lock per upload id, held for the duration of a part
+commit. No cross-upload locking, so two tenants never contend `[T1]`
+(`internal/ingest/store.go@a1b2c3d::commitPart`).
+
+**Failure behaviour.**
+| Failure | Component does | Caller sees | Recovery |
+| :--- | :--- | :--- | :--- |
+| Database unreachable | Fails fast after 3 s, no retry | `503`, `Retry-After` | Caller retries; nothing partial is left |
+| Part already committed | Returns the existing part | `200`, identical body | None needed; the write is idempotent on `upload_id` |
+| Blob write succeeds, row commit fails | Leaves an orphan blob | `500` | Reaper reclaims within 1 h |
+
+**Back-pressure.** Bounded at 32 in-flight commits; beyond that the handler
+sheds with `429` rather than queueing `[T1]`
+(`internal/ingest/store.go@a1b2c3d::maxInflight` = 32).
+```
+
+### 11.3 Rules
+
+- **One writer per piece of state.** If two components write the same table, that
+  is a finding rather than a design; record it in the RAID log (§23).
+- **Responsibility must be falsifiable.** "Handles uploads" is not a
+  responsibility. "Single writer of the `uploads` table" is, and the reader can
+  check it.
+- **Every component states failure behaviour**, including what the *caller*
+  observes. A component entry that describes only the happy path has documented
+  the easy half.
+- **Concurrency is stated even when the answer is "none".** "Stateless,
+  request-scoped" is information; silence is not.
+- A component that appears in the L3 diagram and has no row here is an orphan,
+  and vice versa.
+
+---
+
+## 12. Interface & contract catalogue (L2.2)
 
 | ID | Contract | Kind | Consumers | Auth | Idempotent | Payload limit | Provenance | Tier |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -440,7 +516,7 @@ instances. Records as `R-04`.
 | `I-04` | `ingest.Worker/Claim` | gRPC (internal) | ingest-worker | **none** → `C-03` | Yes | — | `proto/worker.proto@a1b2c3d` | `[T1]` |
 <!-- example — delete -->
 
-### 11.1 Compatibility & versioning policy (L2.3)
+### 12.1 Compatibility & versioning policy (L2.3)
 
 | Aspect | Policy | Tier |
 | :--- | :--- | :--- |
@@ -450,7 +526,7 @@ instances. Records as `R-04`.
 | Event schema evolution | Backward-compatible only; consumers must ignore unknown fields; schema registry with compatibility mode `BACKWARD` | `[T1]` |
 | Internal gRPC | No compatibility guarantee; deployed lockstep | `[T1]` |
 
-### 11.2 Agent-facing contracts (L2.2)
+### 12.2 Agent-facing contracts (L2.2)
 
 Required whenever a contract's consumer is an autonomous agent rather than a
 human-written client. Three properties become load-bearing, because an agent
@@ -504,13 +580,13 @@ finding in C6 (`STD-LIMEN-03` §7). Record it as a risk rather than omitting it.
 
 ---
 
-## 12. Data, state and consistency (L2.4)
+## 13. Data, state and consistency (L2.4)
 
-### 12.1 ERD
+### 13.1 ERD
 
 Standard Mermaid `erDiagram` with PKs, FKs, cardinalities. Rules `-01` §9 apply.
 
-### 12.2 Consistency semantics (the part an ERD cannot express)
+### 13.2 Consistency semantics (the part an ERD cannot express)
 
 | Flow | Consistency | Window | Transaction boundary | Delivery | Idempotency key | Ordering | Tier |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -528,7 +604,7 @@ Standard Mermaid `erDiagram` with PKs, FKs, cardinalities. Rules `-01` §9 apply
 > during the window sees `status: pending`, never a 404 and never a dangling
 > `complete` `[T1]`.
 
-### 12.3 Clock assumptions
+### 13.3 Clock assumptions
 
 | Assumption | Where it matters | Skew tolerance | Failure if violated | Tier |
 | :--- | :--- | :--- | :--- | :--- |
@@ -536,7 +612,7 @@ Standard Mermaid `erDiagram` with PKs, FKs, cardinalities. Rules `-01` §9 apply
 | Token `exp` evaluated against node clock | OIDC validation | 60 s leeway configured | Early/late rejection | `[T1]` |
 <!-- example — delete -->
 
-### 12.4 State ownership
+### 13.4 State ownership
 
 | State | Owning component | Other readers | Other writers |
 | :--- | :--- | :--- | :--- |
@@ -547,9 +623,9 @@ finding, not a design — record it as a risk.
 
 ---
 
-## 13. Threat model (L2.5)
+## 14. Threat model (L2.5)
 
-### 13.1 Assets, adversaries, assumptions
+### 14.1 Assets, adversaries, assumptions
 
 ```markdown
 **Assets:** tenant payload bytes (Restricted/PII), tenant DEKs, OIDC client
@@ -574,7 +650,7 @@ secret, object-store credentials, ingest availability.
 **Rule.** Unstated assumptions are the ones that fail. A threat model with no
 assumptions section is incomplete.
 
-### 13.2 STRIDE sweep per trust boundary
+### 14.2 STRIDE sweep per trust boundary
 
 One table per trust boundary drawn on L1.9.
 
@@ -593,7 +669,7 @@ One table per trust boundary drawn on L1.9.
 **Boundary `TB-2`: edge → internal gRPC** — *(gate: `I-04` is unauthenticated,
 `C-03`, `R-01`)* … one table per boundary.
 
-### 13.3 Abuse cases
+### 14.3 Abuse cases
 
 ≥2 narrative misuse flows, diagrammed as sequence diagrams with the adversary as
 an actor. Example headings: *"A-3 replays a captured idempotency key to overwrite
@@ -601,9 +677,9 @@ another tenant's upload"*, *"A-5 exfiltrates DEKs via a dependency post-install 
 
 ---
 
-## 14. Failure domains & degradation (L2.6)
+## 15. Failure domains & degradation (L2.6)
 
-### 14.1 Dependency criticality
+### 15.1 Dependency criticality
 
 | Dependency | Class | On failure | Timeout | Retry | Fallback | Tier |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -614,7 +690,7 @@ another tenant's upload"*, *"A-5 exfiltrates DEKs via a dependency post-install 
 | Datadog | Soft | Blind, not down | 1 s | 0 | Local buffer, 5 min | `[T1]` |
 <!-- example — delete -->
 
-### 14.2 Timeout & retry budget
+### 15.2 Timeout & retry budget
 
 **Rule.** `Σ(downstream timeout × (retries+1)) < upstream timeout`. Violations are
 a finding — they guarantee that the caller gives up while the callee is still
@@ -631,7 +707,7 @@ working, converting a slow dependency into a retry storm.
 Include **retry amplification**: 3 retries at each of 3 layers = up to 64× load
 on the deepest dependency. State the amplification factor explicitly.
 
-### 14.3 Degradation matrix
+### 15.3 Degradation matrix
 
 Columns are capabilities; rows are failure conditions. This is what operators read
 at 3 a.m.
@@ -650,7 +726,7 @@ at 3 a.m.
 An all-❌ column means no graceful degradation was designed — say so explicitly
 rather than leaving it implicit.
 
-### 14.4 Blast radius
+### 15.4 Blast radius
 
 | Failure domain | Scope | Tenants affected | Recovery |
 | :--- | :--- | :--- | :--- |
@@ -660,7 +736,86 @@ rather than leaving it implicit.
 
 ---
 
-## 15. Fitness functions (L3.2)
+## 16. Runtime sequence flows (L2.7)
+
+At least two: one primary success path, and one failure or recovery path. The
+second is the one worth writing. A sequence diagram showing only success
+documents the case nobody needed a diagram for.
+
+### 16.1 Flow template
+
+Each flow declares what it enters through and what it exercises, so a reader can
+tell why it was chosen:
+
+```markdown
+#### Flow 1: multipart upload, happy path
+
+**Entry contract:** `I-01` · **Exercises:** `QA-03` (upload-ack latency)
+· **Budget:** 250 ms p95, decomposed in §15
+```
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor C as Tenant client
+    participant A as ingest-api
+    participant K as KMS
+    participant D as Postgres
+    participant O as Object store
+
+    C->>A: POST /v1/uploads, part 1 of N
+    A->>K: derive tenant DEK
+    K-->>A: DEK, 2 s timeout, 1 retry
+    A->>D: insert part row, pending
+    D-->>A: committed
+    A->>O: PUT encrypted part
+    alt object store accepts
+        O-->>A: 200
+        A->>D: mark part complete
+        A-->>C: 202 Accepted
+    else object store times out after 10 s
+        O--xA: timeout
+        A-->>C: 503 with Retry-After 5
+        Note over A,D: row stays pending, reaper reclaims within 1 h
+    end
+```
+
+### 16.2 Step table
+
+The diagram shows order; the table shows consequence. Both are required, because
+an arrow cannot say what the client sees when the hop fails.
+
+| # | Hop | Timeout | On failure | Client sees | Tier |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| 2 | api → KMS | 2 s, 1 retry | Fail closed; no plaintext path exists | `503` | `[T1]` |
+| 4 | api → Postgres | 3 s, 2 retries | Abort before any blob is written | `503` | `[T1]` |
+| 6 | api → object store | 10 s, 3 retries | Row left `pending`, blob absent | `503`, then `pending` on poll | `[T1]` |
+<!-- example rows — delete -->
+
+### 16.3 Rules
+
+- **At least one flow must fail.** Rule V-8: use `alt` / `opt` for timeout, retry
+  and partial failure. A document whose every sequence diagram succeeds has not
+  described the system, only the demo.
+- **Show what the client observes**, not merely that a hop failed. "Returns an
+  error" is not a client-observable outcome; `503` with a `Retry-After` is.
+- **Every external hop carries its timeout** in the diagram or the step table,
+  and those numbers must agree with the timeout budget in §15.
+  Disagreement between the two is a common and consequential defect.
+- **Name the entry contract and the quality scenario.** A flow that exercises no
+  registered `QA-nn` is worth asking about: either it is not important, or the
+  quality model is missing something.
+- **Participants use the same names as the container diagram** (Rule V-1). G3
+  compares them.
+- Keep to about seven participants. Beyond that, split the flow.
+- **No semicolons in message or note text.** Mermaid treats `;` as a statement
+  separator, so it truncates the line and the diagram fails to parse. Use a
+  comma. Quotes around sequence-diagram message text render literally, unlike
+  flowchart node labels, so leave them off.
+
+---
+
+## 17. Fitness functions (L3.2)
 
 | ID | Characteristic | `QA` | Check | Where | Threshold | On failure | Kind |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -693,7 +848,7 @@ H-priority attributes is what L3.2 is scored on — not the number of functions.
 
 ---
 
-## 16. SLO / SLI (L3.1)
+## 18. SLO / SLI (L3.1)
 
 | ID | SLI | Target | Window | Error budget | Derived from | Alert | Runbook |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -706,7 +861,7 @@ invented at L3 with no L1 ancestor is measuring something nobody prioritized.
 
 ---
 
-## 17. Alert → runbook matrix (L3.3)
+## 19. Alert → runbook matrix (L3.3)
 
 | Alert | Condition | Severity | Owner | Runbook | First action | Auto-remediation |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -719,7 +874,7 @@ An alert with no runbook is a notification, and it will be muted within a quarte
 
 ---
 
-## 18. Cost model (L3.4)
+## 20. Cost model (L3.4)
 
 Report **unit economics**, not only monthly totals — a total tells you nothing
 about whether growth is affordable.
@@ -739,9 +894,9 @@ headers) with their estimated savings — as `[T3]` with owners.
 
 ---
 
-## 19. Data governance (L3.5)
+## 21. Data governance (L3.5)
 
-### 19.1 Classification
+### 21.1 Classification
 
 | Data | Class | Residency | Retention | Encryption | Tier |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -750,7 +905,7 @@ headers) with their estimated savings — as `[T3]` with owners.
 | Audit log | Confidential | eu-west-1 | 400 d (immutable) | At rest | `[T1]` |
 | Telemetry | Internal | us-east-1 ⚠️ | 15 d | Vendor-managed | `[T1]` — **residency conflict with `K-01`** → `R-08` |
 
-### 19.2 Deletion cascade
+### 21.2 Deletion cascade
 
 The section most often stated and least often traced. Every store must appear.
 
@@ -770,9 +925,9 @@ A deletion story that stops at the primary database is not a deletion story.
 
 ---
 
-## 20. Migration & decommission (L3.8, `brownfield-change` only)
+## 22. Migration & decommission (L3.8, `brownfield-change` only)
 
-### 20.1 Delta table
+### 22.1 Delta table
 
 | As-is | To-be | Class | Sections affected | Revertible |
 | :--- | :--- | :--- | :--- | :--- |
@@ -781,7 +936,7 @@ A deletion story that stops at the primary database is not a deletion story.
 | `ingest-gc` (hourly cron) | `ingest-gc` (per-region) | modified | L2.1 | Yes |
 | `pkg/legacy/replicator` | — | **removed** | L2.1 | No, after step 6 |
 
-### 20.2 Increment sequencing (strangler fig)
+### 22.2 Increment sequencing (strangler fig)
 
 | # | Increment | Ships independently | Revert path | Revert expires | Exit criterion |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -792,7 +947,7 @@ A deletion story that stops at the primary database is not a deletion story.
 | 5 | Promote eu-central-1 to accept writes | Yes | Route all to eu-west | 7 d | `FF-02` passes both regions |
 | 6 | Decommission `pkg/legacy/replicator` | — | **None** | — | Zero traffic 30 d |
 
-### 20.3 Data migration
+### 22.3 Data migration
 
 State the dual-write window, backfill strategy and throughput, the reconciliation
 check (what query proves both sides agree), cutover criteria, and what happens to
@@ -800,7 +955,7 @@ in-flight writes during cutover.
 
 ---
 
-## 21. RAID log (L3.9)
+## 23. RAID log (L3.9)
 
 Decisions deliberately excluded — they live in ADRs (`-01` Rule A-1).
 
@@ -814,7 +969,7 @@ Decisions deliberately excluded — they live in ADRs (`-01` Rule A-1).
 
 Types: `R` Risk, `I` Issue, `A` Assumption, `D` Dependency.
 
-### 21.1 Technical debt register
+### 23.1 Technical debt register
 
 | ID | Debt | Incurred by | Interest (ongoing cost) | Principal (cost to fix) | Pay-down trigger |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -822,7 +977,7 @@ Types: `R` Risk, `I` Issue, `A` Assumption, `D` Dependency.
 
 ---
 
-## 22. Roadmap (L3.10)
+## 24. Roadmap (L3.10)
 
 Phases with **trigger conditions**, not dates. Dates in an architecture document
 are wrong within a quarter; triggers stay true.
@@ -835,7 +990,7 @@ are wrong within a quarter; triggers stay true.
 
 ---
 
-## 23. Section header convention
+## 25. Section header convention
 
 Every section carries its ID, concern framing, and (where relevant) mode marker:
 

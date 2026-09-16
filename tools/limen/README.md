@@ -173,7 +173,7 @@ jobs:
 ```
 
 Blocking on every code PR turns the standard into a tax and teams route around
-it. This is fitness function `FF-07` in `STD-LIMEN-02` §15.
+it. This is fitness function `FF-07` in `STD-LIMEN-02` §17.
 
 `fetch-depth: 0` matters: a shallow clone will not contain the baseline commit
 and G1 fails with "baseline commit unavailable" rather than a real result.
