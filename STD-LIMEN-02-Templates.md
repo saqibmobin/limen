@@ -1,7 +1,7 @@
 # Engineering Standard: Agent-Authored HLD — Templates & Schemas
 
 **Document Reference:** `STD-LIMEN-02`
-**Version:** 5.0.0
+**Version:** 5.1.0
 **Status:** Canonical
 **Supersedes:** `STD-ARCH-HLD-02` v4.0.0 (identical content; renamed to Limen)
 **Companions:** `STD-LIMEN-01-Framework.md` (process), `STD-LIMEN-03-Audit.md` (audit)
@@ -29,7 +29,8 @@ sections marked `[AS-IS]`; to-be content to sections marked `[TO-BE]`.
 
 **Consequences of this mode:**
 - L3.8 Migration & decommission is mandatory.
-- No paragraph may mix as-is and to-be (`-01` Rule M-1).
+- No paragraph may mix as-is and to-be; use the `[AS-IS]` / `[TO-BE]` markers
+  defined in `-01` Rule M-1.
 - ≥70% of L2 as-is claims must carry resolvable provenance.
 ```
 

@@ -1,7 +1,7 @@
 # Engineering Standard: Agent-Authored HLD — Framework & Process
 
 **Document Reference:** `STD-LIMEN-01`
-**Version:** 5.1.0
+**Version:** 5.2.0
 **Status:** Canonical
 **Supersedes:** `STD-ARCH-HLD-01` v4.0.0 (renamed to Limen; §7.2 adds the greenfield-to-brownfield re-baseline trigger in 5.1.0)
 **Also supersedes:** `STD-ARCH-LLM-HLD-002` v3.0.0 (single-file Progressive Multi-Level Standard)
@@ -53,6 +53,19 @@ and audit profile. Mode is recorded in front matter and cannot change mid-docume
 
 **Rule M-1.** In `brownfield-change`, no paragraph may describe as-is and to-be
 state together. If a sentence needs the word "will", it belongs in a to-be block.
+
+The separation is declared with inline markers, which is what G11 checks:
+
+```markdown
+[AS-IS] The router resolves a tenant to a single region `[T1]` (…).
+
+[TO-BE] Proposed: the router will resolve a tenant to a home region and a
+failover region `[T3]` — owner @platform, trigger: second region provisioned.
+```
+
+A unit carrying both markers fails G11, as does an `[AS-IS]` unit written in the
+future tense. A `brownfield-change` document using neither marker fails: the
+separation the mode exists to enforce is not being made.
 
 **Rule M-2.** In `greenfield`, the phrase "the system does X" is prohibited.
 Use "the system will do X" or "Proposed: X". The audit penalizes present-tense
@@ -544,6 +557,22 @@ every prose mention. If L1.9 says `Ingest Service`, no other artifact may say
 container that exists in the L1 context. No orphans, no new top-level elements
 appearing at lower zoom.
 
+**Rule V-2a (level annotation).** Containment cannot be checked unless a diagram
+says which zoom level it is and, at L3, which container it decomposes. Every C4
+diagram is preceded by an annotation on the line before its fence:
+
+```markdown
+<!-- c4: level=1 -->
+<!-- c4: level=2 -->
+<!-- c4: level=3 parent="ingest-api" -->
+```
+
+`parent` is required at level 3 and names an element that appears in a level-1 or
+level-2 diagram; a parent that exists nowhere is an orphan and fails G3. Diagrams
+that are not C4 views (sequence flows, ERDs, state machines) are not annotated
+and are not containment-checked. Without annotations G3 still checks naming
+(V-1), but reports containment as unverifiable.
+
 **Rule V-3 (model as source).** Where tooling allows, generate C4 diagrams from a
 single **Structurizr DSL** model rather than hand-writing Mermaid per level. One
 model renders all levels, so text and picture cannot diverge. Mermaid is the
@@ -574,6 +603,17 @@ fallback for environments without a build step.
 - **V-13.** Node IDs are `[A-Za-z][A-Za-z0-9_]*`. Display text goes in the label.
 - **V-14.** Every diagram must be render-verified before the document is
   presented. Hard gate G2.
+- **V-15.** A document that deliberately shows invalid diagram source, such as a
+  standard illustrating what not to write, marks it so the renderer is not asked
+  to prove it wrong:
+
+  ```markdown
+  <!-- limen:ignore-diagram -->
+  ```
+
+  placed within the two lines before the fence. Use it only for examples that are
+  meant to be broken; suppressing a real failure is how G2 stops meaning
+  anything.
 
 ---
 
