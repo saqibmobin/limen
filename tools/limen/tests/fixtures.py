@@ -262,6 +262,46 @@ CLEAN_QUESTIONS = """- id: Q-01
   status: open
 """
 
+# A pointer record: the decision lives in another file because the repo forbids
+# restating one fact in two places. Its prose is intentionally thin, so G12 must
+# judge it on `owned_by` plus the structural trade-off, not on its vocabulary.
+POINTER_ADR = """---
+id: ADR-012
+title: Keep both wasm variants in the deploy artifact
+status: accepted
+date: 2026-07-14
+deciders: ["@ingest-lead"]
+optimizes_for: [QA-05]
+sacrifices: [QA-02]
+affects_sections: [L2.5]
+record_type: pointer
+owned_by: decisions/variant-spike.md
+---
+
+# ADR-012 - Keep both wasm variants
+
+> **Pointer record.** The evidence and rationale are owned by
+> `decisions/variant-spike.md` and are not restated here.
+
+**Outcome:** DEFER - no change landed.
+"""
+
+# Deliberately never says "option" or "alternative"; it weighs one anyway.
+POINTER_ADR_OWNER = """# Variant Bundle Spike
+
+## Question
+
+Does every browser download both variants, or does the loader fetch one?
+
+## Is dropping the second variant safe?
+
+Not provable in this timebox: no target-browser matrix exists.
+
+## Decision
+
+Defer. Revisit if a browser matrix is adopted.
+"""
+
 CLEAN_ADR = """---
 id: ADR-011
 title: Derive tenant data keys per request rather than per session
@@ -356,6 +396,8 @@ def build_clean_docs(root: Path, baseline: str) -> None:
     _write(root, "registers/quality-scenarios.yaml", CLEAN_SCENARIOS)
     _write(root, "registers/open-questions.yaml", CLEAN_QUESTIONS)
     _write(root, "adr/ADR-011-per-request-key-derivation.md", CLEAN_ADR)
+    _write(root, "adr/ADR-012-keep-both-variants.md", POINTER_ADR)
+    _write(root, "decisions/variant-spike.md", POINTER_ADR_OWNER)
 
     intake_body = f"""### L1.4 Quality scenarios
 <!-- frames: C-01, C-02 -->

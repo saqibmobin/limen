@@ -61,6 +61,19 @@ def _load_adrs(directory: Path) -> dict[str, dict]:
     return out
 
 
+def _repo_file(docs: DocSet, rel_path: str) -> str | None:
+    """Read a repo-relative path by walking up from the document set."""
+    base = Path(docs.root).resolve()
+    for _ in range(6):
+        candidate = base / rel_path
+        if candidate.is_file():
+            return candidate.read_text(encoding="utf-8", errors="replace")
+        if base.parent == base:
+            break
+        base = base.parent
+    return None
+
+
 def run(docs: DocSet, strict: bool = False) -> GateResult:
     gate = GateResult("G12", "ADR externality")
     refs = docs.adr_refs()
@@ -79,7 +92,7 @@ def run(docs: DocSet, strict: bool = False) -> GateResult:
 
     adrs = _load_adrs(directory)
     dangling = _check_refs(gate, refs, adrs)
-    invalid = _check_files(gate, adrs)
+    invalid = _check_files(gate, adrs, docs)
     rows, uncited, unsacrificed = _check_tradeoff_tables(gate, docs, adrs, strict)
 
     if not adrs:
@@ -107,7 +120,7 @@ def _check_refs(gate: GateResult, refs, adrs: dict) -> int:
     return dangling
 
 
-def _check_files(gate: GateResult, adrs: dict) -> int:
+def _check_files(gate: GateResult, adrs: dict, docs: DocSet) -> int:
     invalid = 0
     for adr_id, info in adrs.items():
         rel = info["path"].name
@@ -135,7 +148,28 @@ def _check_files(gate: GateResult, adrs: dict) -> int:
             gate.fail(f"{adr_id} is superseded but does not say by which ADR", file=rel)
 
         body = info["text"].lower()
-        if "considered options" not in body and "options" not in body:
+        # A pointer record deliberately holds no content: a repo with a
+        # one-owner-per-fact rule forbids restating the owning file, so
+        # demanding the alternatives here would demand the duplication that
+        # rule exists to prevent. Check the owning file instead.
+        owned_by = front.get("owned_by")
+        if str(front.get("record_type", "")).lower() == "pointer":
+            if not owned_by:
+                gate.fail(f"{adr_id} declares `record_type: pointer` but no "
+                          "`owned_by`; a pointer to nowhere is not a record",
+                          file=rel)
+            else:
+                owner = _repo_file(docs, str(owned_by))
+                if owner is None:
+                    gate.fail(f"{adr_id} points at `{owned_by}`, which does not "
+                              "exist", file=rel)
+                # The prose is deliberately elsewhere, so scanning it for the
+                # word "options" measures vocabulary, not rigour: the owning
+                # spike for ADR-006 weighs its alternative under the heading
+                # "Is dropping `mvp` safe?" and never says "option". What a
+                # pointer record must carry is the structural trade-off, and
+                # the optimizes_for/sacrifices check below enforces that.
+        elif "considered options" not in body and "options" not in body:
             gate.warn(f"{adr_id} has no considered-options section; the alternatives "
                       "are the reason ADRs are worth writing", file=rel)
         if not front.get("optimizes_for") and not front.get("sacrifices"):

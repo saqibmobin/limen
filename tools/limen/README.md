@@ -70,7 +70,7 @@ Without it G2 still runs its static lint and reports the render step as skipped.
 | **G9** Front matter valid | Schema per `STD-LIMEN-02` §2; baseline commit exists in the repo; declared `counts` match the content |
 | **G10** Block ownership | `agent:` block hashes intact; no unhashed agent blocks; markers well-formed; ids unique |
 | **G11** Mode discipline | greenfield: no present-tense unbuilt behavior. brownfield-change: no unit mixing `[AS-IS]`/`[TO-BE]`, migration section present |
-| **G12** ADR externality | Every `ADR-nnn` resolves to a file with valid MADR front matter; trade-off rows cite an ADR and name what they sacrifice |
+| **G12** ADR externality | Every `ADR-nnn` resolves to a file with valid MADR front matter; trade-off rows cite an ADR and name what they sacrifice. A `record_type: pointer` ADR is judged on `owned_by` resolving plus its declared trade-off, not on restating prose it deliberately does not hold |
 
 ### Mode-aware checks
 
@@ -106,6 +106,13 @@ low-durability pointers are reported:
 | `declaration` | Language-aware patterns for Go, Python, TS/JS, Rust, Java, SQL, proto, Terraform, shell |
 | `identifier` | Bare identifier match. **Warns**, because it is not a declaration |
 | `line-range` | `#L10-L45` fallback. **Warns**, because line numbers rot |
+
+A dotted or indexed symbol is an assertion about structure, so if the document
+parses and the path is not in it the pointer is **missing** rather than falling
+through to a textual match. Without that rule a deleted YAML key resolves to
+whatever else shares its last segment: `jobs.e2e.if` against a workflow that
+dropped its `if:` matched the `if` of a shell script in a `run:` block, which
+turns a deleted key into a merely moved one.
 
 `--strict` promotes those warnings to failures. Tree-sitter would improve the
 `declaration` layer; the current patterns are dependency-free and fail closed,
@@ -225,7 +232,7 @@ them. The 12 gates are the enforcement; these ids are what they enforce against.
 ## Tests
 
 ```bash
-python3 tools/limen/tests/run_tests.py          # 80 assertions
+python3 tools/limen/tests/run_tests.py          # 88 assertions
 python3 tools/limen/tests/run_tests.py -k drift --keep
 ```
 

@@ -15,6 +15,7 @@ import json
 import shutil
 import sys
 import tempfile
+import textwrap
 from contextlib import redirect_stdout
 from pathlib import Path
 
@@ -108,10 +109,16 @@ def test_clean(work: Path, repo: Path, baseline: str) -> None:
     check("clean: G8 has a non-empty question register",
           gate(payload, "G8").get("stats", {}).get("open") == 3,
           json.dumps(gate(payload, "G8").get("stats")))
-    check("clean: G12 found the ADR and its trade-off row",
+    check("clean: G12 found the ADRs and the trade-off row",
           gate(payload, "G12").get("stats", {}).get("rows_without_adr") == 0
-          and gate(payload, "G12").get("stats", {}).get("adr_files") == 1,
+          and gate(payload, "G12").get("stats", {}).get("adr_files") == 2,
           json.dumps(gate(payload, "G12").get("stats")))
+    # ADR-012 is a pointer record whose owning file never says "option". It must
+    # pass on `owned_by` plus optimizes_for/sacrifices, or the gate is measuring
+    # vocabulary rather than whether a trade-off was recorded.
+    check("clean: G12 accepts a pointer record with a resolvable owner",
+          not any("ADR-012" in str(i) for i in gate(payload, "G12").get("items", [])),
+          json.dumps(gate(payload, "G12").get("items", [])))
 
 
 def test_clean_strict(work: Path, repo: Path, baseline: str) -> None:
@@ -330,6 +337,63 @@ def test_output_formats(work: Path, repo: Path) -> None:
 
 # --------------------------------------------------------------------------
 
+def test_resolver_structured() -> None:
+    """A dotted path that left the document is missing, not weakly found.
+
+    Regression: `jobs.e2e.if` against a workflow whose `if:` key was deleted
+    used to fall through to the identifier layer and match the `if` of a shell
+    script inside a `run:` block, reporting a deleted key as merely moved.
+    """
+    from limen.resolver import resolve
+
+    before = textwrap.dedent("""\
+        jobs:
+          e2e:
+            if: github.event_name == 'push'
+            steps:
+              - run: npm run test:e2e
+        """)
+    after = textwrap.dedent("""\
+        jobs:
+          e2e:
+            steps:
+              - run: |
+                  if [ -z "$VERSION" ]; then exit 1; fi
+                  npm run test:e2e
+        """)
+    path = ".github/workflows/test.yml"
+
+    res = resolve(path, before, "jobs.e2e.if")
+    check("resolver: dotted path resolves structurally while it exists",
+          res.found and res.method == "structured", f"{res.found} {res.method}")
+
+    res = resolve(path, after, "jobs.e2e.if")
+    check("resolver: a deleted dotted path is missing, not identifier-matched",
+          not res.found and res.method == "structured",
+          f"found={res.found} method={res.method} line={res.line}")
+
+    res = resolve(path, after, "jobs.e2e")
+    check("resolver: a surviving dotted path still resolves",
+          res.found and res.method == "structured", f"{res.found} {res.method}")
+
+    res = resolve(path, after, "npm")
+    check("resolver: a bare symbol still falls through to a textual match",
+          res.found and res.method == "identifier", f"{res.found} {res.method}")
+
+    # A literal deep inside a structured node is anchored, not "weakly anchored":
+    # the node owns every line indented under it, however many that is.
+    from limen.resolver import find_literal
+
+    res = resolve(path, before, "jobs")
+    matched, where = find_literal(before, res, "e2e")
+    check("resolver: a literal inside a structured node is firmly anchored",
+          matched and "outside symbol" not in (where or ""), f"{matched} {where}")
+
+    matched, where = find_literal(before, res, "lint-and-build")
+    check("resolver: a literal absent from the node does not match",
+          not matched, f"{matched} {where}")
+
+
 def main_tests() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("-k", dest="pattern", default="")
@@ -348,6 +412,7 @@ def main_tests() -> int:
         ("clean-strict", lambda: test_clean_strict(work, repo, baseline)),
         ("broken", lambda: test_broken(work, repo, baseline)),
         ("drift", lambda: test_drift(work, repo, baseline, later)),
+        ("resolver", lambda: test_resolver_structured()),
         ("stamp", lambda: test_stamp(work, repo, baseline)),
         ("subcommands", lambda: test_subcommands(work, repo)),
         ("example", lambda: test_example(work, repo)),

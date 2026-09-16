@@ -236,8 +236,19 @@ def resolve(path: str, text: str, symbol: str | None,
             if res is not None and res.found:
                 return res
             if res is not None and res.method == "structured" and not res.found:
-                # A structured file with a non-matching path: fall through to a
-                # textual search before declaring it missing.
+                # A dotted or indexed symbol is an assertion about structure. If
+                # the document parsed and the path is not in it, the path is
+                # gone, and a textual match on the last segment would be a
+                # different thing wearing its name: `jobs.e2e.if` against a
+                # workflow whose `if:` key was deleted matches the `if` of a
+                # shell script in a `run:` block. Report it missing.
+                if any(c in symbol for c in ".["):
+                    return Resolution(
+                        False, None, "structured",
+                        note=f"structured path {symbol!r} not present in the "
+                             "parsed document")
+                # A bare symbol may name a value rather than a key, so it still
+                # falls through to a textual search.
                 break
         return _resolve_identifier(text, symbol)
 
@@ -255,6 +266,18 @@ def resolve(path: str, text: str, symbol: str | None,
 
     # Whole-file pointer: existence was already established by the caller.
     return Resolution(True, None, "file")
+
+
+def _block_extent(lines: list[str], idx: int) -> int:
+    """Number of lines the structured node at `idx` spans, including its own."""
+    base = len(lines[idx]) - len(lines[idx].lstrip())
+    n = idx + 1
+    while n < len(lines):
+        line = lines[n]
+        if line.strip() and (len(line) - len(line.lstrip())) <= base:
+            break
+        n += 1
+    return n - idx
 
 
 def find_literal(text: str, resolution: Resolution, literal: str) -> tuple[bool, str | None]:
@@ -276,7 +299,13 @@ def find_literal(text: str, resolution: Resolution, literal: str) -> tuple[bool,
         idx = resolution.line - 1
         if idx < len(lines) and hit(lines[idx]):
             return True, "declaration line"
+        # A structured node owns every line indented under it, which is usually
+        # more than the fixed window below: `jobs:` in a workflow can run for a
+        # hundred lines. Scoping to the node keeps a correct assertion from
+        # being reported as weakly anchored just because the value is deep.
         window = lines[idx: idx + 6]
+        if resolution.method == "structured":
+            window = lines[idx: idx + _block_extent(lines, idx)]
         for offset, line in enumerate(window):
             if hit(line):
                 return True, f"line {resolution.line + offset}"
