@@ -242,6 +242,25 @@ def test_subcommands(work: Path, repo: Path) -> None:
     check("subcommands: `limen xrefs` runs and finds no broken references",
           rc == 0 and "0 broken reference" in buf.getvalue(), buf.getvalue()[-200:])
 
+    # The lmn alias must resolve the package through a symlink, including one
+    # made from outside the repo (~/.local/bin/lmn -> bin/limen).
+    import os
+    import subprocess
+    import tempfile
+    entry = Path(__file__).resolve().parents[1] / "bin" / "limen"
+    alias = Path(__file__).resolve().parents[1] / "bin" / "lmn"
+    check("alias: bin/lmn is a symlink to bin/limen",
+          alias.is_symlink() and alias.resolve() == entry.resolve(),
+          f"{alias} -> {alias.resolve() if alias.exists() else 'missing'}")
+    with tempfile.TemporaryDirectory(prefix="limen-alias-") as tmp:
+        far = Path(tmp) / "lmn"
+        os.symlink(entry, far)
+        proc = subprocess.run([sys.executable, str(far), "--version"],
+                              capture_output=True, text=True)
+        check("alias: resolves through an out-of-tree symlink",
+              proc.returncode == 0 and "limen" in proc.stdout,
+              (proc.stdout + proc.stderr)[-200:])
+
 
 def test_selection(work: Path, repo: Path) -> None:
     docs = work / "docs-clean"

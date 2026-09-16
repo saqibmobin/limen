@@ -16,6 +16,27 @@ No install. Python 3.9+ and `git`; `PyYAML` for front matter and registers.
 python3 tools/limen/bin/limen check --docs docs/architecture --repo .
 ```
 
+### Putting `limen` on PATH
+
+`bin/` ships two names for the same entry point: `limen` and the short alias
+`lmn`. Either works, from anywhere:
+
+```bash
+# option A — add bin/ to PATH (gets you both names)
+export PATH="$PWD/tools/limen/bin:$PATH"
+
+# option B — symlink one name into a directory already on PATH
+ln -s "$PWD/tools/limen/bin/limen" ~/.local/bin/lmn
+
+limen check --docs docs/architecture --repo .
+lmn check --docs docs/architecture --repo .      # identical
+```
+
+The entry script resolves its package through `realpath`, so a symlink from
+anywhere works. `lmn` is a typing convenience only — **written surfaces use
+`limen` in full** (see BRAND.md §6.5). If `lmn` collides with something already
+on your PATH, symlink a different name; nothing depends on it.
+
 Diagram rendering (G2) additionally needs mermaid-cli. It is discovered in this
 order: `--mmdc`, `$MMDC`, `mmdc` on `PATH`, then `npx -p @mermaid-js/mermaid-cli mmdc`.
 Without it G2 still runs its static lint and reports the render step as skipped.

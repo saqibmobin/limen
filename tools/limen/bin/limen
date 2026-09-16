@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
-"""Zero-install entry point: ./bin/limen check --docs ... --repo ..."""
+"""Zero-install entry point: ./bin/limen check --docs ... --repo ...
+
+`realpath` rather than `abspath`, so this still resolves the package when the
+script is reached through a symlink — e.g. ~/.local/bin/lmn -> bin/limen.
+"""
 import os
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
 from limen.cli import main  # noqa: E402
 

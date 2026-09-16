@@ -151,6 +151,7 @@ document IDs do **not** change.
 | Standard filename | `STD-LIMEN-NN-Title.md` | `STD-LIMEN-02-Templates.md` |
 | Cross-reference shorthand | `-NN` | ``see `-03` §9`` |
 | CLI binary | `limen` | `limen check` |
+| CLI short alias | `lmn` | `lmn check` |
 | Python package | `limen` | `from limen.gates import g1_provenance` |
 | Tool directory | `tools/limen/` | |
 | Cache file | `.limen-cache.json` | gitignored |
@@ -170,7 +171,24 @@ limen xrefs   [--dir DIR]          # absorbs tools/limen/bin/limen xrefs
 
 `limen` with no subcommand runs `check`, so existing invocations keep working.
 
-### 6.4 What must NOT change
+### 6.4 The `lmn` alias
+
+`bin/lmn` is a symlink to `bin/limen`. It exists so the command is three
+characters to type, and nothing more.
+
+- **Terminals, shell history, ad-hoc invocation:** `lmn` is fine.
+- **Every written surface — READMEs, standards, CI config, commit messages,
+  runbooks, issue threads:** `limen` in full.
+
+The reason is searchability. A reader grepping for `limen` must find every
+invocation, and a reader who has never seen the alias must not have to guess.
+An alias that leaks into documentation stops being a convenience and becomes a
+second name to learn.
+
+If `lmn` collides with an existing command on someone's PATH, they symlink a
+different name. Nothing in the repo depends on the alias existing.
+
+### 6.5 What must NOT change
 
 Renaming the framework must not touch the vocabulary the standards are built
 from. These are load-bearing and appear in the counts shown:
