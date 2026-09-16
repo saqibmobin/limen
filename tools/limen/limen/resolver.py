@@ -173,7 +173,8 @@ def _ts_patterns(name: str) -> list[str]:
         rf"^\s*(?:export\s+)?(?:abstract\s+)?class\s+{n}\b",
         rf"^\s*(?:export\s+)?(?:const|let|var)\s+{n}\s*[:=]",
         rf"^\s*(?:export\s+)?(?:type|interface|enum)\s+{n}\b",
-        rf"^\s*(?:public|private|protected|static|async|\s)*{n}\s*\(",  # class method
+        # `[\(<]` so a generic method matches: `protected async request<T>(`.
+        rf"^\s*(?:public|private|protected|static|async|\s)*{n}\s*[\(<]",  # class method
     ]
 
 

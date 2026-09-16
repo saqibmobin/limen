@@ -393,6 +393,22 @@ def test_resolver_structured() -> None:
     check("resolver: a literal absent from the node does not match",
           not matched, f"{matched} {where}")
 
+    # A generic class method is still a declaration: `request<T = unknown>(`
+    # must not fall through to the identifier layer, which --strict rejects.
+    ts = textwrap.dedent("""\
+        export class ApiClient {
+          protected async request<T = unknown>(
+            url: string,
+            opts: { timeoutMs?: number } = {}
+          ): Promise<T> {
+            const { timeoutMs = 30000 } = opts;
+          }
+        }
+        """)
+    res = resolve("src/services/api-client.ts", ts, "request")
+    check("resolver: a generic TS class method resolves as a declaration",
+          res.found and res.method == "declaration", f"{res.found} {res.method}")
+
 
 def main_tests() -> int:
     ap = argparse.ArgumentParser()
