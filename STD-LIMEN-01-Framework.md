@@ -1,7 +1,7 @@
 # Engineering Standard: Agent-Authored HLD — Framework & Process
 
 **Document Reference:** `STD-LIMEN-01`
-**Version:** 5.3.0
+**Version:** 5.4.0
 **Status:** Canonical
 **Supersedes:** `STD-ARCH-HLD-01` v4.0.0 (renamed to Limen; §7.2 adds the greenfield-to-brownfield re-baseline trigger in 5.1.0)
 **Also supersedes:** `STD-ARCH-LLM-HLD-002` v3.0.0 (single-file Progressive Multi-Level Standard)
@@ -360,10 +360,13 @@ neither is a wish, and the audit treats it as noise.
 and at paragraph or bullet level for prose. An untagged normative claim fails
 hard gate G6.
 
-Prose that *discusses* a tag rather than carrying one names it in words, as
-"Tier 1", not as the bracketed token. The validator cannot distinguish use from
-mention, so a sentence explaining what `[T1]` means is read as a Tier 1 claim and
-will be asked for provenance it does not have.
+A tag is a code span holding exactly the bracketed token: `` `[T1]` ``. Prose
+that *discusses* a tag rather than carrying one names it in words, as "Tier 1".
+The bracketed token anywhere else, bare in a sentence or inside a longer code
+span, fails G6: either it is a mention that should be in words, or it is a tag
+whose backticks are misplaced. The second is the common case, as in
+`` **`[T3] Proposed:** ``, where the span swallows the prefix and the claim
+would otherwise escape the proposal checks in G7.
 
 **Rule T-4 (anti-laundering).** A `[T2]` synthesis may not introduce a factual
 claim absent from its supporting `[T1]` set. "The service uses a worker pool

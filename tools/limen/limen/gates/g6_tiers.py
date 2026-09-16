@@ -11,6 +11,8 @@ that actually matter and leaves ordinary explanatory prose alone:
   FAIL  a table whose cells carry pointers or tier tags but which has no Tier
         column
   FAIL  a [T1] claim with no pointer, ADR reference or standard citation
+  FAIL  a [Tn] token that is not a tag: bare in prose, or inside a longer code
+        span. A tag is a code span holding exactly the token (T-3)
   WARN  a unit stating a quantity (250 ms, 24 MiB, 99.9%) with no tier tag
         (FAIL under --strict)
 
@@ -44,6 +46,7 @@ def run(docs: DocSet, strict: bool = False) -> GateResult:
         gate.detail = "no prose units found"
         return gate
 
+    stray = 0
     untagged_pointer = 0
     untagged_quantity = 0
     bad_t1 = 0
@@ -54,6 +57,16 @@ def run(docs: DocSet, strict: bool = False) -> GateResult:
             continue
         tiers = u.tiers
         text = u.text
+
+        if u.stray_tiers:
+            # Reported instead of the checks below: those would read the unit
+            # as untagged, and the misplaced token is the actual defect.
+            stray += 1
+            gate.fail("tier token is not a tag; a tag is a code span holding "
+                      "exactly `[Tn]`. If this discusses a tier, write \"Tier 1\" "
+                      "in words (STD-LIMEN-01 T-3)",
+                      file=u.file, line=u.line, detail={"kind": u.kind, "text": text[:160]})
+            continue
 
         if u.has_pointer and not tiers:
             untagged_pointer += 1
@@ -90,13 +103,14 @@ def run(docs: DocSet, strict: bool = False) -> GateResult:
 
     gate.stats = {
         "units": len(units),
+        "stray_tier_tokens": stray,
         "untagged_with_pointer": untagged_pointer,
         "untagged_with_quantity": untagged_quantity,
         "unsupported_t1": bad_t1,
         "laundered_t2": laundered,
         "tables_missing_tier_column": missing_col,
     }
-    gate.detail = (f"{untagged_pointer} untagged pointer claim(s), {bad_t1} "
+    gate.detail = (f"{stray} stray tier token(s), {untagged_pointer} untagged pointer claim(s), {bad_t1} "
                    f"unsupported [T1], {missing_col} table(s) missing a Tier column")
     return gate
 
@@ -135,7 +149,7 @@ def _check_table_cells(gate: GateResult, t) -> None:
         cell = cells[col].strip()
         if not cell or cell in ("—", "-"):
             continue
-        from ..docset import TIER_TAG_RE
-        if not TIER_TAG_RE.search(cell):
+        from ..docset import tier_tags
+        if not tier_tags(cell):
             gate.warn(f"Tier cell {cell!r} is not a [T0]-[T3] tag",
                       file=t.file, line=line)

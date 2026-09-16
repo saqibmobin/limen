@@ -43,6 +43,29 @@ HEADING_RE = re.compile(r"^(#{1,6})\s+(?P<title>.+?)\s*$")
 SECTION_ID_RE = re.compile(r"^(?P<id>L\d\.\d{1,2}(?:\.\d+)?)\b")
 FRAMES_RE = re.compile(r"<!--\s*frames:\s*(?P<ids>[^>]*?)\s*-->")
 TIER_TAG_RE = re.compile(r"\[T([0-3])\]")
+# A tag is a code span holding exactly the bracketed token (STD-LIMEN-01 T-3).
+# The token anywhere else, bare or inside a longer span, is either a mention
+# that should say "Tier 1" in words or a tag whose backticks are misplaced.
+CODE_SPAN_RE = re.compile(r"(?<!`)(`+)(?!`)(.+?)(?<!`)\1(?!`)")
+EXACT_TAG_RE = re.compile(r"\s*\[T([0-3])\]\s*")
+
+
+def tier_tags(text: str) -> list[str]:
+    """Tier digits of the well-formed `[Tn]` tags in text."""
+    return [m.group(1) for s in CODE_SPAN_RE.finditer(text)
+            if (m := EXACT_TAG_RE.fullmatch(s.group(2)))]
+
+
+def stray_tier_tokens(text: str) -> list[str]:
+    """`[Tn]` tokens that are not well-formed tags."""
+    stray: list[str] = []
+    last = 0
+    for s in CODE_SPAN_RE.finditer(text):
+        stray += TIER_TAG_RE.findall(text[last:s.start()])
+        if not EXACT_TAG_RE.fullmatch(s.group(2)):
+            stray += TIER_TAG_RE.findall(s.group(2))
+        last = s.end()
+    return stray + TIER_TAG_RE.findall(text[last:])
 ADR_REF_RE = re.compile(r"\bADR-(\d{1,4})\b")
 QID_RE = re.compile(r"\bQ-\d+\b")
 BULLET_RE = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+\S")
@@ -201,7 +224,11 @@ class Unit:
 
     @property
     def tiers(self) -> list[str]:
-        return TIER_TAG_RE.findall(self.text)
+        return tier_tags(self.text)
+
+    @property
+    def stray_tiers(self) -> list[str]:
+        return stray_tier_tokens(self.text)
 
     @property
     def has_pointer(self) -> bool:
@@ -227,7 +254,7 @@ class Table:
     @property
     def is_normative(self) -> bool:
         blob = " ".join(c for _, cells in self.rows for c in cells)
-        return bool(TIER_TAG_RE.search(blob) or POINTER_BARE_RE.search(blob))
+        return bool(tier_tags(blob) or POINTER_BARE_RE.search(blob))
 
 
 @dataclass

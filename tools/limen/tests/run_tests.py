@@ -173,6 +173,12 @@ def test_broken(work: Path, repo: Path, baseline: str) -> None:
           "no tier tag" in t["G6"], t["G6"])
     check("broken: G6 flags the table with no Tier column",
           "no Tier column" in t["G6"], t["G6"])
+    # One bare mention in prose, one tag whose closing backtick landed after the
+    # prefix. Both counted as tags before T-3 was enforced; the second one hid a
+    # proposal from G7 once it stopped counting.
+    check("broken: G6 flags the bare mention and the misplaced backtick",
+          gate(payload, "G6").get("stats", {}).get("stray_tier_tokens") == 2,
+          json.dumps(gate(payload, "G6").get("stats")))
 
     check("broken: G7 flags the ownerless proposal", "no owner" in t["G7"], t["G7"])
     check("broken: G7 flags the triggerless proposal", "no trigger" in t["G7"], t["G7"])

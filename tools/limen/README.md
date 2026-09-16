@@ -64,7 +64,7 @@ Without it G2 still runs its static lint and reports the render step as skipped.
 | **G3** Model name consistency | C4 containment via `<!-- c4: level=N parent="X" -->`; near-duplicate element names; elements absent from prose |
 | **G4** Concern coverage | Every `C-nn` framed by a section; every `L<n>.<n>` section declares `<!-- frames: … -->`; ≥4 stakeholder roles |
 | **G5** Response measures | Six-part scenarios with *quantified* measures; priority pairs; conflict set present; every SLO cites a `QA-nn` |
-| **G6** Tier tagging | Pointer-bearing claims tagged; `[T1]` anchored to a pointer, ADR or standard; normative tables have a Tier column; T-4 anti-laundering |
+| **G6** Tier tagging | Pointer-bearing claims tagged; every `[Tn]` token is a well-formed tag, not a bare mention; `[T1]` anchored to a pointer, ADR or standard; normative tables have a Tier column; T-4 anti-laundering |
 | **G7** Proposal hygiene | Every `[T3]` has an owner and a trigger, and does not read as present tense |
 | **G8** Open questions | Register exists and is **non-empty**; every `[T0]` resolves to a `Q-nn`; open questions have owner + resolution path |
 | **G9** Front matter valid | Schema per `STD-LIMEN-02` §2; baseline commit exists in the repo; declared `counts` match the content |

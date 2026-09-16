@@ -570,6 +570,10 @@ G1 failures:
 G6: this claim has a pointer and no tier tag
 (`internal/worker/pool.go@{short}::NewPool`).
 
+G6: a [T1] claim is one read directly from the code.
+
+G6: **`[T3] Proposed:** shard the queue, owner @platform, trigger: backlog > 1h.
+
 G7: add per-region garbage collection `[T3]`.
 
 G8: the cache topology is undetermined `[T0]`.

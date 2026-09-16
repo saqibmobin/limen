@@ -218,7 +218,7 @@ Exit codes: `0` all gates pass · `1` gate failure · `2` validator error ·
 | Name consistency | G3 | Extract element names from all diagrams + prose backticks; cluster by normalized form; flag near-duplicates |
 | Concern coverage | G4 | Join `concerns.yaml` against `<!-- frames: -->` comments |
 | Response measures | G5 | `quality-scenarios.yaml`: assert `response_measure` non-empty and numeric-bearing |
-| Tier tagging | G6 | Regex sweep for sentences/rows lacking a tier tag in normative sections |
+| Tier tagging | G6 | Regex sweep for sentences/rows lacking a tier tag in normative sections, and for `[Tn]` tokens that are not well-formed tags |
 | Proposal hygiene | G7 | For each `[T3]`: require owner + trigger nearby; flag present-tense verbs |
 | Open questions | G8 | Cross-ref `[T0]` ↔ `open-questions.yaml`; assert count > 0 at L0 |
 | Block ownership | G10 | Recompute SHA-256 of each `agent:` block; compare to recorded hash |
