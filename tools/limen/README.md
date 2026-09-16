@@ -76,6 +76,18 @@ Without it G2 still runs its static lint and reports the render step as skipped.
 | **G11** Mode discipline | greenfield: no present-tense unbuilt behavior. brownfield-change: no unit mixing `[AS-IS]`/`[TO-BE]`, migration section present |
 | **G12** ADR externality | Every `ADR-nnn` resolves to a file with valid MADR front matter; trade-off rows cite an ADR and name what they sacrifice |
 
+### Mode-aware checks
+
+Two gates read `mode` from front matter and judge accordingly, so the same
+command is correct for a system that does not exist yet and one that does:
+
+- **G1** does not demand provenance pointers in `greenfield`; it reports "no
+  pointers (greenfield)" and passes. In either brownfield mode, a document with
+  no pointers fails.
+- **G11** enforces tense in `greenfield` (no present-tense description of
+  unbuilt behaviour), and in `brownfield-change` enforces that no unit mixes
+  `[AS-IS]` with `[TO-BE]` and that a migration section exists.
+
 ### Deterministic vs heuristic
 
 Most checks are fully deterministic and always fail. Four are necessarily

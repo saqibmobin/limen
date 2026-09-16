@@ -1,10 +1,13 @@
 # Limen: Start Here
 
 Limen is a standard for architecture documents written by agents, plus a
-validator that enforces it. Every factual claim is anchored to a commit and
+validator that enforces it. Every factual claim is anchored to evidence and
 re-checkable, uncertainty has a first-class place to live instead of being
-quietly upgraded into a fact, and drift between the document and the code is
-detected mechanically rather than noticed by accident.
+quietly upgraded into a fact, and drift between the document and the thing it
+describes is detected mechanically rather than noticed by accident.
+
+It applies to systems that do not exist yet and to systems that already do. The
+evidence differs; the discipline does not. See §2.
 
 *Limen* is Latin for threshold. The standard is about what crosses one:
 verified claim or guess, gate passed or failed, code that still matches its
@@ -44,7 +47,65 @@ every authoring phase.
 
 ---
 
-## 2. Authoring an HLD: the agent's loop
+## 2. Three modes: greenfield and brownfield
+
+Mode is the first thing chosen at intake, and it decides what counts as evidence,
+which sections are mandatory, and how the validator judges the document. It is
+recorded in front matter and cannot change within a version.
+
+| Mode | Use when | A `[T1]` claim is anchored to | What the mode makes mandatory |
+| :--- | :--- | :--- | :--- |
+| `greenfield` | The system does not exist yet | PRD and RFC requirements, external standards (RFC 6749, ISO, OWASP), arithmetic sizing bounds | Nothing may be described in the present tense. Every component is a proposal, so it is `[T3]` with an owner and a trigger |
+| `brownfield-asis` | Documenting a system that already runs | The repository at one pinned commit | At least 70% of L2 claims carry resolvable provenance. No proposals mixed into as-is sections |
+| `brownfield-change` | Designing a change to a system that already runs | The repo at a pinned commit for as-is; requirements for to-be | As-is and to-be live in physically separate sections. A delta table and a migration plan (L3.8) are required |
+
+### Greenfield is not a lesser case
+
+The provenance machinery looks like it needs existing code, and it does not. In
+greenfield mode a `[T1]` claim cites a requirement, a published standard or an
+arithmetic derivation, and the validator does not demand commit pointers: `limen
+check` reports "no pointers (greenfield)" rather than failing G1. What it does
+enforce instead is tense. Describing unbuilt behaviour as though it already works
+is the single most common way an agent-written greenfield design misleads its
+reader, so G11 treats it as a gate failure rather than a style note.
+
+The parts of the standard that carry the most weight in greenfield are the ones
+with no code in them at all: constraints, the quality tree, the six-part
+scenarios, the trade-off index and the ADRs behind it. Those are what make a
+design reviewable before anything is built.
+
+### Brownfield gets the drift machinery
+
+Once there is a repository, `[T1]` claims point at it, and the document can be
+re-checked against the code forever after:
+
+```bash
+limen check --docs docs/architecture --repo . --at HEAD
+```
+
+This is the part greenfield cannot have yet, and the reason brownfield documents
+carry a higher evidence bar.
+
+### Which to pick
+
+- Designing something that does not exist: `greenfield`.
+- Writing down a system that already runs, with no change proposed: `brownfield-asis`.
+- Changing an existing system: `brownfield-change`. This is the most common real
+  case and the easiest to get wrong, because as-is and to-be blur together in
+  prose. The standard forbids mixing them in a single paragraph, and the
+  validator checks it.
+
+### When a greenfield system gets built
+
+The mode changes. Once the system ships, re-baseline the document as
+`brownfield-asis`: pin the commit, and every `[T3]` proposal that actually got
+built becomes a `[T1]` claim with a provenance pointer. Proposals that did not
+get built stay `[T3]` or move to the roadmap. This is a major version bump,
+because the evidence rules change underneath every claim in the document.
+
+---
+
+## 3. Authoring an HLD: the agent's loop
 
 ### First run in a repository
 
@@ -91,7 +152,7 @@ From `-01` §11, the five that matter most:
 
 ---
 
-## 3. Updating an existing HLD
+## 4. Updating an existing HLD
 
 This is the majority of real work and it is **not** a re-run of §2.
 
@@ -120,7 +181,7 @@ run `limen stamp` to make the error go away; that destroys the edit.
 
 ---
 
-## 4. Auditing
+## 5. Auditing
 
 The audit is a **separate agent invocation with a clean context**. Self-audit
 scores the reasoning the author remembers, not the reasoning on the page.
@@ -142,7 +203,7 @@ Output is `docs/architecture/audits/<date>-<version>.yaml` (`-03` §11).
 
 ---
 
-## 5. The human's job at each gate
+## 6. The human's job at each gate
 
 The gates are worthless if the answer is always "approved, continue."
 
@@ -159,7 +220,7 @@ willing to admit uncertainty. Healthy is 5–20 at L0, declining across gates.
 
 ---
 
-## 6. Wiring it into an agent harness
+## 7. Wiring it into an agent harness
 
 Paste into the repo's `CLAUDE.md` (or the equivalent for your agent):
 
@@ -184,7 +245,7 @@ exit code 3 open the ticket. That is fitness function `FF-07`.
 
 ---
 
-## 7. Right-sizing: the smallest legitimate HLD
+## 8. Right-sizing: the smallest legitimate HLD
 
 The full standard describes a `P4-regulated-critical` document. Most systems are
 not that, and a standard that produces 80 pages for a cron job will be ignored.
@@ -201,7 +262,7 @@ its most likely failure mode in practice.
 
 ---
 
-## 8. First-run checklist for a new repository
+## 9. First-run checklist for a new repository
 
 - [ ] `pip install pyyaml`; confirm mermaid-cli resolves (`--gates G2` on any doc)
 - [ ] Create `docs/architecture/` and `docs/adr/`

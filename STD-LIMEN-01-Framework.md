@@ -1,9 +1,9 @@
 # Engineering Standard: Agent-Authored HLD — Framework & Process
 
 **Document Reference:** `STD-LIMEN-01`
-**Version:** 5.0.0
+**Version:** 5.1.0
 **Status:** Canonical
-**Supersedes:** `STD-ARCH-HLD-01` v4.0.0 (identical content; renamed to Limen)
+**Supersedes:** `STD-ARCH-HLD-01` v4.0.0 (renamed to Limen; §7.2 adds the greenfield-to-brownfield re-baseline trigger in 5.1.0)
 **Also supersedes:** `STD-ARCH-LLM-HLD-002` v3.0.0 (single-file Progressive Multi-Level Standard)
 **Companion Documents:**
 - `STD-LIMEN-02-Templates.md` — section templates, table schemas, front matter
@@ -477,6 +477,7 @@ An HLD update is warranted when any of these fire:
 | ADR superseded | ADR status change | The sections citing that ADR |
 | SLO breach / incident | Ops | L2.6, L3.1, L3.3, RAID |
 | Quality attribute reprioritized | Product/business | L1.4 and everything downstream — a full re-gate |
+| **First production deploy of a greenfield system** | The system now exists | Mode changes `greenfield` → `brownfield-asis`. Re-baseline: every `[T3]` that shipped becomes `[T1]` with a provenance pointer; proposals that did not ship stay `[T3]` or move to the roadmap. Major version bump, because the evidence rules change under every claim |
 | Scheduled staleness | Age since baseline commit > profile threshold | Full re-validation, targeted repair |
 
 ### 7.3 Update procedure
