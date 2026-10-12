@@ -1,6 +1,6 @@
 # Limen
 
-**Version:** 6.0.0 · **Status:** Canonical · **Decided by:** [`RFC-LIMEN-002`](rfcs/RFC-limen-core.md)
+**Version:** 6.1.0 · **Status:** Canonical · **Decided by:** [`RFC-LIMEN-002`](rfcs/RFC-limen-core.md)
 **Supersedes:** `STD-LIMEN-01`, `-02` and `-03` 5.x, kept at the git tag `v5-final`
 
 Limen is a standard for architecture documents (HLDs) that agents write from
@@ -40,9 +40,8 @@ do, never what it does.
 
 A brownfield document that proposes a change keeps the change in a **Proposed
 change** section (§5.4), whose claims are `[proposed]`. Nothing outside that
-section describes the change. This is the easiest separation to get wrong and the
-most expensive: a reader who cannot tell what runs today from what is planned
-cannot review either.
+section describes the change. A reader who cannot tell what runs today from what
+is planned cannot review either.
 
 When a greenfield system ships, re-baseline it as brownfield in a major version:
 pin the commit, turn each proposal that was built into a verified claim with a
@@ -69,6 +68,10 @@ never mistaken for a claim.
 An inferred claim may not introduce a fact its verified facts lack: "the
 service uses a worker pool" is an unsourced fact, not an inference. Proposed
 content reads "will" or "Proposed:", never "does".
+
+A pointer verifies what the code is, not what it achieves. "Uploads pass through
+`Admit`" can rest on a pointer; "oversized uploads are rejected" is a property,
+verified only by trying to get one through (rule 5), and inferred until then.
 
 ### 3.2 Pointers
 
@@ -99,11 +102,13 @@ For example `internal/ingest/handler.go@a1b2c3d::(*Handler).Upload`,
    acceptable. A guess presented as fact is the worst outcome in this standard,
    and no audit penalizes a disclosed unknown.
 5. **Try to break it before you claim it.** For each tagged claim in the
-   invariants, data, failure and security sections, write one line saying what
-   would make it false and what you checked, with the command when it can be
-   rerun. For example: *Checked: every caller of `registerLayerTable` at
-   `ed42d9a`; 9 call it directly, bypassing the queue.* A counterexample makes
-   the claim a finding, not something to soften in prose.
+   invariants, data, failure and security sections, each claim that the system
+   meets a quality scenario today, and each fix a risk relies on, write one line
+   saying what would make it false and what you checked, with the command when
+   it can be rerun. Attack the claim, not its test, which is rule 7: to break
+   "every write to `uploads` takes its row lock", list every write. For example:
+   *Checked: `git grep -n "UPDATE uploads"` at `a1b2c3d`; 2 of 7 writes skip the
+   lock.* A counterexample makes the claim a finding, not something to soften.
 6. **Decisions live in ADRs.** Each considers at least two options a competent
    engineer might choose, and states what the chosen one sacrifices. The HLD
    indexes decisions; it does not contain them.
@@ -220,17 +225,15 @@ consistency model, sync and async boundaries, or where trust boundaries sit. Wal
 each through the top quality scenarios. The chosen one should lose somewhere; if
 it wins every row, the others were straw men (`LIMEN-reference.md` §21).
 
-Apply rule 5 while writing sections 6 to 9. Write the summary last. Then stamp
-(§8.3), run `limen check`, and fix what it reports. A failing check means the
-document is not ready to show anyone.
+Apply rule 5 as you write, and write the summary last. Then stamp (§8.3), run
+`limen check`, and fix what it reports: a failing check means it is not ready.
 
 ### 6.3 Review
 
 The audit runs in a separate session (§10). At Checkpoint 2, read its
-falsification attempts first: central claims that survived an honest attempt to
-break them are worth more than a longer document whose claims were never tested.
-If the user explicitly asks for everything in one pass, comply, and say so at the
-top of the summary.
+falsification attempts first: claims that survived an honest attempt to break
+them outweigh a longer document whose claims were never tested. If the user asks
+for everything in one pass, comply, and say so at the top of the summary.
 
 ## 7. Extracting from code
 
@@ -277,12 +280,9 @@ HLD. A check that blocks every code PR gets routed around.
 5. Bump the version (§5.2).
 6. Re-audit when a decision, a priority or an invariant changed.
 
-A section that cannot be re-verified yet is marked rather than rewritten:
-
-```markdown
-> [!WARNING]
-> **Stale** as of `f4e5d6c`: claims below were last verified at `a1b2c3d`. See `Q-17`.
-```
+A section that cannot be re-verified yet is marked rather than rewritten, with a
+`> [!WARNING]` callout: stale as of the current commit, last verified at the old
+one, with the open question that tracks it.
 
 ### 8.3 Ownership
 
@@ -318,16 +318,16 @@ warns, under `--strict`), 2 when it cannot run, and 3 when the checks pass but
 | `uncertainty` | A tag is malformed, an `[unknown]` names no open question, a question is cited but never defined, or a `[proposed]` lacks an owner or a trigger |
 | `decisions` | A cited ADR has no file |
 
-Whether the claims are true, whether the alternatives were real and whether
-anything is missing are questions for the audit. A passing check says the document
-can be audited, not that it is right.
+Whether claims are true, alternatives real or anything missing is the audit's
+question. A passing check says the document can be audited, not that it is right.
 
 ## 10. The audit
 
 ### 10.1 Inputs
 
 A different agent instance, in a clean context, receives the HLD, the ADRs, the
-repository at the baseline commit, and this file. It never sees the authoring
+repository at the baseline commit, this file, and any previous audit record,
+which it opens last (§10.2). It never sees the authoring
 transcript, plan or notes, because an author scores the reasoning it remembers
 rather than the reasoning on the page. If only the author's model family is
 available, the record says so: shared blind spots are likely. For a regulated
@@ -344,6 +344,8 @@ system, a person signs the audit.
 5. Recomputes the arithmetic: sizing, timeout budgets, cost.
 6. Runs the silence audit: for each stakeholder, what do they need to decide that
    the document does not tell them?
+7. Only then reads the previous audit, if there is one, and re-checks every claim
+   it refuted that the document still makes. Audits catch different things.
 
 ### 10.3 Findings and verdict
 
@@ -361,14 +363,13 @@ the document. Penalising honesty trains the next author to stop looking.
 
 ### 10.4 The audit record
 
-The auditor writes `docs/architecture/audits/<date>-<version>.md` from the
-template in `LIMEN-reference.md` §22, and its findings go back to the author
-verbatim, never summarised by the author.
+The auditor writes `docs/architecture/audits/<date>-<version>.md` from
+`LIMEN-reference.md` §22. Its findings reach the author verbatim, unsummarised.
 
 ## 11. Diagrams
 
-- Name each element identically in every diagram and in the prose.
-- Give every diagram a sentence saying what the reader should conclude from it.
+- Name each element identically everywhere, and give every diagram a sentence
+  saying what the reader should conclude from it.
 - Keep to about fifteen elements, and never draw a three-item list as a diagram.
 - Sequence diagrams show a failure path, not only the happy path.
 - Write Mermaid that renders everywhere: declare the direction (`graph TD`),
@@ -380,9 +381,8 @@ verbatim, never summarised by the author.
 ## 12. Right-sizing
 
 Over-applying this standard is its most likely failure. A CLI tool gets the
-skeleton with most sections a paragraph long, and no triggered sections it does
-not trigger. A payments platform triggers most of them. The skeleton stays
-because its sections are where the design value is; their length is what varies.
+skeleton with most sections a paragraph long; a payments platform triggers most
+sections. The skeleton stays, because that is where the design value is.
 
 ## 13. Migrating from 5.x
 
