@@ -1,7 +1,7 @@
 ---
 title: Limen Validator HLD
 mode: brownfield
-baseline: 0000000
+baseline: 3f20526
 version: 2.0.0
 status: draft
 adr_dir: adr
@@ -21,7 +21,7 @@ Python process that reads a document set, resolves its pointers through git,
 renders its diagrams through mermaid-cli, and reports five checks. It also
 records who wrote each section (`stamp`) and converts 5.x documents
 (`migrate`). This is version 6.0.0 `[verified]`
-(`tools/limen/limen/__init__.py@0000000::__version__` = 6.0.0).
+(`tools/limen/limen/__init__.py@3f20526::__version__` = 6.0.0).
 
 **Shaping decisions.**
 
@@ -91,7 +91,7 @@ converting 5.x documents.
 | `QA-05` vs `QA-01` | Heuristics catch more and also cry wolf | `QA-05` | A check that cries wolf gets disabled. Heuristic findings warn, and fail only under `--strict` |
 
 Warnings fail only under `--strict` `[verified]`
-(`tools/limen/limen/cli.py@0000000::_check`). Nobody decided to trade `QA-03`
+(`tools/limen/limen/cli.py@3f20526::_check`). Nobody decided to trade `QA-03`
 for convenience, but the diagram fallback does exactly that; see Invariants.
 
 ## 4. Context and containers
@@ -109,7 +109,7 @@ Conclude from this that limen keeps no state between runs except two files besid
 the documents, the render cache and the lock, and that the dashed edge is the
 only way it reaches the network. It reads the **target repository** only through
 git, read-only and addressed by revision `[verified]`
-(`tools/limen/limen/gitio.py@0000000::Git`).
+(`tools/limen/limen/gitio.py@3f20526::Git`).
 
 ```mermaid
 graph TD
@@ -123,9 +123,9 @@ graph TD
 ```
 
 The five **checks** share one parsed document set from the **document loader**
-`[verified]` (`tools/limen/limen/docset.py@0000000::DocSet`), and each returns
+`[verified]` (`tools/limen/limen/docset.py@3f20526::DocSet`), and each returns
 the same result shape, so the **reporter** never needs to know what a check
-examined `[verified]` (`tools/limen/limen/model.py@0000000::CheckResult`). Only
+examined `[verified]` (`tools/limen/limen/model.py@3f20526::CheckResult`). Only
 **stamp and migrate** write the **lock file** (Data and consistency).
 
 ## 5. Key decisions
@@ -139,11 +139,11 @@ examined `[verified]` (`tools/limen/limen/model.py@0000000::CheckResult`). Only
 
 | Invariant | Tier | Basis | Checked | Status |
 | :--- | :--- | :--- | :--- | :--- |
-| A baseline commit missing from the repository fails `pointers`; it never passes | `[verified]` | `tools/limen/limen/checks/pointers.py@0000000::run` | Read `run`. `test_greenfield` fails when the failure is replaced by an early return | `tested` |
-| A deleted YAML key is reported missing, not moved | `[verified]` | `tools/limen/limen/resolver.py@0000000::resolve` | `test_resolver` fails when the structured-path return in `resolve` is disabled | `tested` |
-| An agent cannot claim a section recorded as a person's | `[verified]` | `tools/limen/limen/lock.py@0000000::stamp` | `test_stamp` fails when the refusal in `stamp` is removed | `tested` |
-| `limen check` writes nothing but the render cache | `[verified]` | `tools/limen/limen/checks/diagrams.py@0000000::CACHE_NAME` | `git grep -n write_text` and `git grep -n os.replace` over `tools/limen/limen`: the cache and a temporary render file in a check, the lock in `stamp`, documents in `migrate`. No test | `untested` |
-| limen never reaches the network | `[verified]` | `tools/limen/limen/checks/diagrams.py@0000000::find_mmdc` | Read `find_mmdc`: with no `mmdc` on the path it runs `npx --yes -p @mermaid-js/mermaid-cli`, which downloads the package whenever npm is reachable | `violated`, `R-05` |
+| A baseline commit missing from the repository fails `pointers`; it never passes | `[verified]` | `tools/limen/limen/checks/pointers.py@3f20526::run` | Read `run`. `test_greenfield` fails when the failure is replaced by an early return | `tested` |
+| A deleted YAML key is reported missing, not moved | `[verified]` | `tools/limen/limen/resolver.py@3f20526::resolve` | `test_resolver` fails when the structured-path return in `resolve` is disabled | `tested` |
+| An agent cannot claim a section recorded as a person's | `[verified]` | `tools/limen/limen/lock.py@3f20526::stamp` | `test_stamp` fails when the refusal in `stamp` is removed | `tested` |
+| `limen check` writes nothing but the render cache | `[verified]` | `tools/limen/limen/checks/diagrams.py@3f20526::CACHE_NAME` | `git grep -n write_text` and `git grep -n os.replace` over `tools/limen/limen`: the cache and a temporary render file in a check, the lock in `stamp`, documents in `migrate`. No test | `untested` |
+| limen never reaches the network | `[verified]` | `tools/limen/limen/checks/diagrams.py@3f20526::find_mmdc` | Read `find_mmdc`: with no `mmdc` on the path it runs `npx --yes -p @mermaid-js/mermaid-cli`, which downloads the package whenever npm is reachable | `violated`, `R-05` |
 
 The last row is the useful one. The 5.x version of this document claimed limen
 made no network calls; trying to break that claim found the fallback.
@@ -152,14 +152,14 @@ made no network calls; trying to break that claim found the fallback.
 
 | State | Owner | How it is written | If interrupted | Evidence | Tier |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| `.limen-lock.yaml` | `stamp` and `migrate` | Whole file, to a temporary file that is then renamed | The old lock survives intact | `tools/limen/limen/lock.py@0000000::write` | `[verified]` |
-| `.limen-cache.json` | The diagrams check | Overwritten in place, best effort | A corrupt cache reads as empty, and diagrams render again | `tools/limen/limen/checks/diagrams.py@0000000::_load_cache` | `[verified]` |
-| Migrated documents | `migrate` | Each file rewritten, then the lock written last | Files converted with no lock, so every section reads as a person's | `tools/limen/limen/migrate.py@0000000::migrate` | `[verified]` |
+| `.limen-lock.yaml` | `stamp` and `migrate` | Whole file, to a temporary file that is then renamed | The old lock survives intact | `tools/limen/limen/lock.py@3f20526::write` | `[verified]` |
+| `.limen-cache.json` | The diagrams check | Overwritten in place, best effort | A corrupt cache reads as empty, and diagrams render again | `tools/limen/limen/checks/diagrams.py@3f20526::_load_cache` | `[verified]` |
+| Migrated documents | `migrate` | Each file rewritten, then the lock written last | Files converted with no lock, so every section reads as a person's | `tools/limen/limen/migrate.py@3f20526::migrate` | `[verified]` |
 
 The half-failure that matters is the third row. If `migrate` stops after
 rewriting the files and before writing the lock, the ownership markers are gone
 and nothing records them `[verified]`
-(`tools/limen/limen/migrate.py@0000000::migrate`). That fails safe, because
+(`tools/limen/limen/migrate.py@3f20526::migrate`). That fails safe, because
 agents stop editing sections that read as a person's, but the agent's ownership
 is lost and must be stamped again by hand. Checked: read `migrate`; it writes the
 files inside its loop and the lock after it.
@@ -168,13 +168,13 @@ files inside its loop and the lock after it.
 
 | Dependency | Hard or soft | On failure | Fallback | Evidence | Tier |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| git | Hard for `pointers` | limen exits 2, "not a git repository" | None | `tools/limen/limen/gitio.py@0000000::Git` | `[verified]` |
-| The baseline commit, present locally | Hard for `pointers` | `pointers` fails; a shallow CI clone hits this | None; CI needs `fetch-depth: 0` | `tools/limen/limen/checks/pointers.py@0000000::run` | `[verified]` |
-| mermaid-cli | Soft | Rendering is skipped with a warning, which `--strict` fails | Static lint still runs | `tools/limen/limen/checks/diagrams.py@0000000::run` | `[verified]` |
-| PyYAML | Hard | Front matter cannot be read; limen exits 2 | None | `tools/limen/limen/docset.py@0000000::_yaml_load` | `[verified]` |
+| git | Hard for `pointers` | limen exits 2, "not a git repository" | None | `tools/limen/limen/gitio.py@3f20526::Git` | `[verified]` |
+| The baseline commit, present locally | Hard for `pointers` | `pointers` fails; a shallow CI clone hits this | None; CI needs `fetch-depth: 0` | `tools/limen/limen/checks/pointers.py@3f20526::run` | `[verified]` |
+| mermaid-cli | Soft | Rendering is skipped with a warning, which `--strict` fails | Static lint still runs | `tools/limen/limen/checks/diagrams.py@3f20526::run` | `[verified]` |
+| PyYAML | Hard | Front matter cannot be read; limen exits 2 | None | `tools/limen/limen/docset.py@3f20526::_yaml_load` | `[verified]` |
 
 Each diagram render is cut off after 120 s `[verified]`
-(`tools/limen/limen/checks/diagrams.py@0000000::run` = 120). Without
+(`tools/limen/limen/checks/diagrams.py@3f20526::run` = 120). Without
 mermaid-cli, four checks run normally and the fifth degrades to lint; nothing
 else degrades `[inferred]`, from the rows above.
 
@@ -189,10 +189,10 @@ assumption for every row below.
 
 | Boundary | Threat | Control | Residual | Risk | Tier |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| Document to git | A crafted path runs a git option or a shell command | git is called with an argument list, never a shell, and the path is joined to the revision as `rev:path`, so it cannot start with a dash (`tools/limen/limen/gitio.py@0000000::Git`) | Low | n/a | `[verified]` |
-| Document to YAML | Crafted front matter constructs arbitrary objects | Only `yaml.safe_load` is used (`tools/limen/limen/docset.py@0000000::_yaml_load`) | Low | n/a | `[verified]` |
+| Document to git | A crafted path runs a git option or a shell command | git is called with an argument list, never a shell, and the path is joined to the revision as `rev:path`, so it cannot start with a dash (`tools/limen/limen/gitio.py@3f20526::Git`) | Low | n/a | `[verified]` |
+| Document to YAML | Crafted front matter constructs arbitrary objects | Only `yaml.safe_load` is used (`tools/limen/limen/docset.py@3f20526::_yaml_load`) | Low | n/a | `[verified]` |
 | Document to mermaid-cli | A crafted diagram attacks the renderer, a headless browser on the runner | Whatever sandbox mermaid-cli gives its browser; limen does not configure one | Not known | `Q-05` | `[unknown]` |
-| npm registry to runner | A compromised mermaid-cli release runs on the runner | None: the fallback installs whatever version npm serves (`tools/limen/limen/checks/diagrams.py@0000000::find_mmdc`) | **High** wherever the fallback runs | `R-05` | `[verified]` |
+| npm registry to runner | A compromised mermaid-cli release runs on the runner | None: the fallback installs whatever version npm serves (`tools/limen/limen/checks/diagrams.py@3f20526::find_mmdc`) | **High** wherever the fallback runs | `R-05` | `[verified]` |
 
 ## 10. Risks and open questions
 
@@ -200,9 +200,9 @@ assumption for every row below.
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | `R-01` | Risk | Declaration patterns miss unusual formatting, so a correct pointer reads as unresolved | Medium | @maintainer | The resolver records which layer matched, and `--strict` rejects weak matches | `ADR-001` | `[verified]` |
 | `R-04` | Risk | No CI runs any check: the repository has a remote but no workflow | High | @maintainer | The second proposal below | `git ls-tree -r --name-only` at the baseline lists no `.github/` path | `[inferred]` |
-| `R-05` | Issue | With no mermaid-cli installed, the diagram check downloads it unpinned from npm, breaking `K-02` and trusting whatever npm serves | High | @maintainer | The first proposal below | `tools/limen/limen/checks/diagrams.py@0000000::find_mmdc` | `[verified]` |
-| `R-06` | Risk | Ownership depends on the agent: nothing stops `--mine` on a section a person changed but never recorded | Medium | @maintainer | Accepted. LIMEN.md §8.3 tells agents to check before editing | `tools/limen/limen/lock.py@0000000::stamp` | `[verified]` |
-| `R-07` | Risk | Renaming a heading drops its lock entry, so the section reads as a person's until stamped again | Low | @maintainer | Fails safe, and `ownership` warns about the orphaned entry | `tools/limen/limen/checks/ownership.py@0000000::run` | `[verified]` |
+| `R-05` | Issue | With no mermaid-cli installed, the diagram check downloads it unpinned from npm, breaking `K-02` and trusting whatever npm serves | High | @maintainer | The first proposal below | `tools/limen/limen/checks/diagrams.py@3f20526::find_mmdc` | `[verified]` |
+| `R-06` | Risk | Ownership depends on the agent: nothing stops `--mine` on a section a person changed but never recorded | Medium | @maintainer | Accepted. LIMEN.md §8.3 tells agents to check before editing | `tools/limen/limen/lock.py@3f20526::stamp` | `[verified]` |
+| `R-07` | Risk | Renaming a heading drops its lock entry, so the section reads as a person's until stamped again | Low | @maintainer | Fails safe, and `ownership` warns about the orphaned entry | `tools/limen/limen/checks/ownership.py@3f20526::run` | `[verified]` |
 
 - Pin mermaid-cli and remove the `npx --yes` fallback, so that a missing renderer
   means a skipped render and never a download `[proposed]`, owner @maintainer,
@@ -222,11 +222,11 @@ Triggered because CI and agents consume the CLI.
 
 | ID | Contract | Consumers | Errors | Evidence | Tier |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| `I-01` | `limen check` exits 0 on a pass, 1 on a failure, 2 when it cannot run, 3 on drift | CI, agents | Each finding names a file, a line and the check | `tools/limen/limen/cli.py@0000000::main` | `[verified]` |
-| `I-02` | `limen stamp` with `--all`, `--mine` or `--human` | Agents | A refusal exits 1 and says why | `tools/limen/limen/lock.py@0000000::stamp` | `[verified]` |
-| `I-03` | `limen migrate`, optionally `--dry-run` | People converting 5.x documents | Lists every change, and what is left to do by hand | `tools/limen/limen/migrate.py@0000000::migrate` | `[verified]` |
-| `I-04` | `--format json` and `--format sarif` | CI, code scanning | SARIF 2.1.0 results | `tools/limen/limen/report.py@0000000::render_sarif` | `[verified]` |
+| `I-01` | `limen check` exits 0 on a pass, 1 on a failure, 2 when it cannot run, 3 on drift | CI, agents | Each finding names a file, a line and the check | `tools/limen/limen/cli.py@3f20526::main` | `[verified]` |
+| `I-02` | `limen stamp` with `--all`, `--mine` or `--human` | Agents | A refusal exits 1 and says why | `tools/limen/limen/lock.py@3f20526::stamp` | `[verified]` |
+| `I-03` | `limen migrate`, optionally `--dry-run` | People converting 5.x documents | Lists every change, and what is left to do by hand | `tools/limen/limen/migrate.py@3f20526::migrate` | `[verified]` |
+| `I-04` | `--format json` and `--format sarif` | CI, code scanning | SARIF 2.1.0 results | `tools/limen/limen/report.py@3f20526::render_sarif` | `[verified]` |
 
 The exit codes and the check names are the contract, so renaming a check is a
 breaking change. The 5.x gate ids still map to checks for one minor version
-`[verified]` (`tools/limen/limen/cli.py@0000000::GATE_ALIASES`).
+`[verified]` (`tools/limen/limen/cli.py@3f20526::GATE_ALIASES`).

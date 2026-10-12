@@ -292,7 +292,7 @@ def test_migrate(work: Path, repo: Path, baseline: str) -> None:
           and "`[inferred]`" in text and "[T1]" not in text, text[:400])
     check("migrate: ownership markers and retired comments removed",
           "agent:begin" not in text and "human:begin" not in text
-          and "frames:" not in text and "c4:" not in text, text)
+          and "<!-- frames:" not in text and "<!-- c4:" not in text, text)
     check("migrate: front matter rewritten",
           "mode: brownfield\n" in text and f"baseline: {baseline}" in text
           and "counts:" not in text and "profile:" not in text and "repo:" not in text,
