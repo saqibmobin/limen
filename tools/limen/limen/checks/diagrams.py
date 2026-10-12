@@ -1,9 +1,9 @@
-"""G2 — diagrams render.
+"""diagrams — every diagram renders.
 
 Two layers:
-  1. Static lint of the syntax rules in STD-LIMEN-01 §9.3 (V-9..V-13). Cheap,
-     runs everywhere, catches the failures that break third-party renderers even
-     when mermaid itself is tolerant.
+  1. Static lint of the Mermaid habits that break third-party renderers even
+     when mermaid itself is tolerant (LIMEN.md §11). Cheap, runs everywhere,
+     and warns rather than fails.
   2. Actual render via mermaid-cli. Authoritative, needs a browser.
 
 Renders are content-hash cached, so only changed diagrams pay the browser cost.
@@ -22,7 +22,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from ..docset import DocSet, Diagram
-from ..model import GateResult, Item
+from ..model import CheckResult, Item
 
 CACHE_NAME = ".limen-cache.json"
 IGNORE_MARK = "limen:ignore-diagram"
@@ -77,8 +77,8 @@ def lint(d: Diagram) -> list[tuple[str, str, int]]:
     header = FLOWCHART_RE.search(src)
 
     if header and header.group(2).strip().split(" ")[0].upper() not in DIRECTIONS:
-        out.append(("V-11", "flowchart has no explicit direction "
-                            "(use `graph TD` or `graph LR`)", 1))
+        out.append(("direction", "flowchart has no explicit direction "
+                                 "(use `graph TD` or `graph LR`)", 1))
 
     for n, line in enumerate(lines, 1):
         stripped = line.strip()
@@ -90,22 +90,22 @@ def lint(d: Diagram) -> list[tuple[str, str, int]]:
             if not label or label.startswith('"'):
                 continue
             if SPECIALS & set(label):
-                out.append(("V-9", f'unquoted node label contains a special '
+                out.append(("quote-labels", f'unquoted node label contains a special '
                                    f'character: {m.group(1)}{m.group(2)}{label}…  '
                                    f'— wrap it in double quotes', n))
 
         if HTML_RE.search(line):
-            out.append(("V-10", "raw HTML tag in a node label; only <br/> is allowed", n))
+            out.append(("no-html", "raw HTML tag in a node label; only <br/> is allowed", n))
         if LATEX_RE.search(line):
-            out.append(("V-12", "LaTeX math does not render on GitHub or most "
+            out.append(("no-latex", "LaTeX math does not render on GitHub or most "
                                 "markdown viewers", n))
         if UNICODE_ARROW_RE.search(line):
-            out.append(("V-12", "Unicode arrow in diagram source; use mermaid edge "
+            out.append(("no-unicode-arrows", "Unicode arrow in diagram source; use mermaid edge "
                                 "syntax (-->)", n))
         if header and (m := BAD_ID_RE.match(line)):
             node_id = m.group(1)
             if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", node_id):
-                out.append(("V-13", f"node id '{node_id}' must match "
+                out.append(("node-ids", f"node id '{node_id}' must match "
                                     f"[A-Za-z][A-Za-z0-9_]*; put display text in "
                                     f"the label", n))
     return out
@@ -171,18 +171,18 @@ def _ignored(docs: DocSet, d: Diagram) -> bool:
 
 
 def run(docs: DocSet, mmdc: str | None = None, strict: bool = False,
-        use_cache: bool = True, jobs: int = 4, timeout: int = 120) -> GateResult:
-    gate = GateResult("G2", "Diagrams render")
+        use_cache: bool = True, jobs: int = 4, timeout: int = 120) -> CheckResult:
+    check = CheckResult("diagrams", "Diagrams render")
     diagrams = [d for d in docs.diagrams() if not _ignored(docs, d)]
     if not diagrams:
-        gate.detail = "no diagrams found"
-        return gate
+        check.detail = "no diagrams found"
+        return check
 
     lint_hits = 0
     for d in diagrams:
         for rule, message, offset in lint(d):
             lint_hits += 1
-            report = gate.fail if strict else gate.warn
+            report = check.fail if strict else check.warn
             report(f"[{rule}] {message}", file=d.file, line=d.line + offset,
                    detail={"rule": rule})
 
@@ -191,13 +191,13 @@ def run(docs: DocSet, mmdc: str | None = None, strict: bool = False,
     rendered = cached = failed = 0
 
     if cmd is None:
-        gate.warn("mermaid-cli not found; render verification skipped. Install with "
-                  "`npm i -g @mermaid-js/mermaid-cli`, or set MMDC, or pass --mmdc. "
-                  "Static lint results above still apply.")
-        gate.stats = {"diagrams": len(diagrams), "lint_findings": lint_hits,
-                      "rendered": 0, "skipped": len(diagrams)}
-        gate.detail = f"{len(diagrams)} diagram(s), render skipped (no mermaid-cli)"
-        return gate
+        check.warn("mermaid-cli not found; render verification skipped. Install with "
+                   "`npm i -g @mermaid-js/mermaid-cli`, or set MMDC, or pass --mmdc. "
+                   "Static lint results above still apply.")
+        check.stats = {"diagrams": len(diagrams), "lint_findings": lint_hits,
+                       "rendered": 0, "skipped": len(diagrams)}
+        check.detail = f"{len(diagrams)} diagram(s), render skipped (no mermaid-cli)"
+        return check
 
     todo = []
     for d in diagrams:
@@ -213,21 +213,21 @@ def run(docs: DocSet, mmdc: str | None = None, strict: bool = False,
             if ok:
                 rendered += 1
                 cache[d.digest] = "pass"
-                gate.add(Item("pass", "renders", d.file, d.line))
+                check.add(Item("pass", "renders", d.file, d.line))
             else:
                 failed += 1
                 cache.pop(d.digest, None)
                 line = d.line
                 if m := PARSE_ERR_RE.search(message):
                     line = d.line + int(m.group(1))
-                gate.fail(f"render failed: {message}", file=d.file, line=line,
-                          detail={"source_head": d.source.splitlines()[:1]})
+                check.fail(f"render failed: {message}", file=d.file, line=line,
+                           detail={"source_head": d.source.splitlines()[:1]})
 
     if use_cache:
         _save_cache(docs.root, cache)
 
-    gate.stats = {"diagrams": len(diagrams), "rendered": rendered, "cached": cached,
-                  "failed": failed, "lint_findings": lint_hits}
-    gate.detail = (f"{len(diagrams)} diagram(s): {rendered + cached} render, "
-                   f"{failed} fail, {lint_hits} lint finding(s)")
-    return gate
+    check.stats = {"diagrams": len(diagrams), "rendered": rendered, "cached": cached,
+                   "failed": failed, "lint_findings": lint_hits}
+    check.detail = (f"{len(diagrams)} diagram(s): {rendered + cached} render, "
+                    f"{failed} fail, {lint_hits} lint finding(s)")
+    return check

@@ -1,8 +1,8 @@
-"""Core data types shared by every gate.
+"""Core data types shared by every check.
 
-Status vocabulary is deliberately small: a gate either passed, failed, warned
-(partial gates under non-strict mode), or was skipped (not applicable / tool
-unavailable).
+Status vocabulary is deliberately small: a check either passed, failed, warned
+(a finding that is a failure only under --strict), or was skipped (not
+applicable, or a tool it needs is unavailable).
 """
 from __future__ import annotations
 
@@ -14,13 +14,13 @@ FAIL = "fail"
 WARN = "warn"
 SKIP = "skip"
 
-# Ordering used when folding item statuses into a gate status.
+# Ordering used when folding item statuses into a check status.
 _RANK = {PASS: 0, SKIP: 0, WARN: 1, FAIL: 2}
 
 
 @dataclass
 class Item:
-    """One checked thing: a provenance pointer, a diagram, a block, a field."""
+    """One checked thing: a pointer, a diagram, a section, a tag."""
 
     status: str
     summary: str
@@ -40,8 +40,8 @@ class Item:
 
 
 @dataclass
-class GateResult:
-    """Outcome of one gate (G1, G2, G9, G10, ...)."""
+class CheckResult:
+    """Outcome of one check (pointers, diagrams, ownership, ...)."""
 
     id: str
     name: str
@@ -65,7 +65,7 @@ class GateResult:
     def ok(self, summary: str, **kw: Any) -> Item:
         return self.add(Item(PASS, summary, **kw))
 
-    def skip(self, detail: str) -> "GateResult":
+    def skip(self, detail: str) -> "CheckResult":
         self.status = SKIP
         self.detail = detail
         return self
