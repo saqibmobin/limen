@@ -1,6 +1,6 @@
 # Limen Reference: Section Templates
 
-**Companion to** [`LIMEN.md`](LIMEN.md) **6.0.0.** Load the template for the
+**Companion to** [`LIMEN.md`](LIMEN.md) **6.1.0.** Load the template for the
 section you are writing, not the whole file.
 
 Templates are illustrations, not forms. Their rows show the kind of content that
@@ -106,6 +106,11 @@ fail.
 
 "Fast" and "highly available" are not measures. A conflict list in which every
 attribute wins was not a conflict list.
+
+A scenario is a target. Saying the system meets it today is a claim about a
+property, so either try to break it (LIMEN.md rule 5) or tag it `[inferred]`. A
+priority tagged `[verified]` because the mechanism behind it exists is the
+commonest wrong tier.
 
 ### 4.2 Sizing
 
@@ -312,7 +317,9 @@ Where the full sweep is triggered, use §14.
 | `TD-01` | Debt | RLS missing on 2 of 11 tables | Manual review on every repo PR | @ingest | Before the next tenant tier | `[verified]` |
 
 For debt, state the interest (what it costs to keep) and the principal (what it
-costs to fix).
+costs to fix). A mitigation the risk depends on is a claim too: check that it
+would work (LIMEN.md rule 5) before recording it, because a fix that cannot work
+leaves the risk open while the document says it is handled.
 
 | ID | Question | Why it matters | Owner | How it gets resolved |
 | :--- | :--- | :--- | :--- | :--- |
@@ -548,7 +555,7 @@ Written by the auditor to `docs/architecture/audits/<date>-<version>.md`.
 
 **Baseline:** a1b2c3d · **Date:** 2026-10-02 · **Auditor:** agent, fresh session,
 model <id>; same family as the author, so shared blind spots are possible.
-**Verdict:** Revise
+**Verdict:** Not reviewable (two blockers)
 
 ## Checks
 `limen check --strict`: 5 passed.
@@ -556,7 +563,7 @@ model <id>; same family as the author, so shared blind spots are possible.
 ## Falsification attempts
 | Claim | How I tried to break it | Outcome |
 | :--- | :--- | :--- |
-| Requests are bounded at 30 s | Ran `ApiClient.request` against a server that stalls the body | **Refuted**: the timer clears on headers; still pending at 2.6x the deadline |
+| A part is never stored without its tenant | Uploaded through each of the three entry points with the tenant header stripped | **Refuted**: the batch endpoint stores the part with a null tenant |
 | Only the part store writes `uploads` | `git grep` for writers at a1b2c3d | Confirmed the disclosed violation; nothing new |
 
 ## Claims sampled
@@ -569,17 +576,23 @@ model <id>; same family as the author, so shared blind spots are possible.
 `TestRejectsOversizedPart` fails when the size check is removed. Confirmed.
 
 ## Arithmetic
-Sizing reproduced. Timeout budget: the document says 49 s; it is unbounded on the
-body-stall path.
+Sizing reproduced. Timeout budget: the document says 49 s; recomputed, 52 s,
+because the KMS retry was left out.
 
 ## Silence
 - Operates: no runbook for the pending-backlog alert.
 - Audits: the deletion cascade omits the analytics warehouse.
 
+## Previous audit, read last
+2.0.0's audit refuted 3 claims. 2 were repaired. 1 is still in the document:
+"the reaper is the only deleter of blobs" is still false (`admin/purge.go` deletes
+too), so it is a blocker again. Found only by this step.
+
 ## Findings
 | Severity | Finding |
 | :--- | :--- |
-| Blocker | The 30 s bound is false and not disclosed |
+| Blocker | The tenant invariant is false on the batch endpoint and not disclosed |
 | Major | Operators cannot act on the pending-backlog alert |
+| Blocker | "The reaper is the only deleter of blobs", refuted by the previous audit, is still in the document |
 | Minor | The context diagram omits the event bus |
 ```
