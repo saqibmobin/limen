@@ -1,0 +1,19 @@
+# Written by `limen stamp`. Commit it; do not edit it by hand, except to delete
+# a `human` line when the person who owns that section hands it back.
+#
+# Each `##` heading maps to the hash of the content an agent last wrote there,
+# or to `human`. A section with no entry was written by a person.
+
+hld.md:
+  0. Summary: sha256:d8a20f42aac8a6fa6f1f4ff7be0bb8a3642567b7eabbd927ffbbe8be1e38d78f
+  1. Problem, scope and non-goals: sha256:1856fa1f183174c9e3f2e069a7a3ab50c835bd59d3999cecd2499aac2b86f62b
+  2. Stakeholders and constraints: sha256:9d32818185980d45f5547d0155132719673a28378ed03b92451930c81eb4d58b
+  3. Quality priorities: sha256:93cc6d078b7efd9ad8d76b2db994d8c904dbeca693086aeebbddc0a7b1a99c5b
+  4. Context and containers: sha256:af92e45dae17c876cb93a6a7e4fb7a55205fc03a00ac01aea02296ce21f1fe54
+  5. Key decisions: sha256:94309d32ea947f16eefb19971a771b9405112bd7afd084c57295e0182f19185a
+  6. Invariants: sha256:0a5b7d39fc15753f0668cf6d07261fe3a42d9a71da1af0b518639cf75d876513
+  7. Data and consistency: sha256:d1f9bfdd7e8ec2f2dff1b0c2e8daba0da3cf1888c4740e3823ccfed53fd535af
+  8. Failure and degradation: sha256:9fd23de5baf1201a3a3e87ba1a71e1136c42b1210212884806f1448c72a7cecc
+  9. Security: sha256:3ef5284f5092cd6559f15e2f1aaeeba6b3ae2c7b62662d507413537650ed151a
+  10. Risks and open questions: sha256:4fae09d2b79e7ccd4e7b37ea240bf63cafceee4d936516d32d7f5561f9136e2c
+  11. Contract catalogue: sha256:b0bad2c1c8fe6e89ba924a1cfe1c343cdb30113d8918ab2e043c3b9e77a5a848

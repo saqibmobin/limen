@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""`limen xrefs` — cross-reference checker for the STD-LIMEN standards.
+"""`limen xrefs` — cross-reference checker for the Limen standard.
 
-The standards cite each other constantly (`-03` §9, §3.7.2, Rule U-2). Those
-citations rot silently when sections are renumbered, and a wrong pointer in a
-standard about grounding claims is a bad look. This validates every internal
-section and rule reference against the headings and rule definitions that
-actually exist.
+LIMEN.md, its reference and the README cite each other by section (`§5.2`,
+`LIMEN-reference.md §7`) and by rule number (`rule 5`). Those citations rot
+silently when sections are renumbered, and a wrong pointer in a standard about
+grounding claims is a bad look.
+
+A bare `§n` points into the document it appears in; `LIMEN.md §n` and
+`LIMEN-reference.md §n` point into those documents from anywhere.
 
 Usage:  limen xrefs [--dir .]
 Exit:   0 clean, 1 broken references found
@@ -16,83 +18,75 @@ import re
 import sys
 from pathlib import Path
 
-DOCS = {
-    "-01": "STD-LIMEN-01-Framework.md",
-    "-02": "STD-LIMEN-02-Templates.md",
-    "-03": "STD-LIMEN-03-Audit.md",
-}
+CORE = "LIMEN.md"
+REFERENCE = "LIMEN-reference.md"
+TARGETS = (CORE, REFERENCE)
+# Documents that cite the standard but are not cited by section themselves.
+CITERS = ("README.md",)
 
-# A `§` preceded by one of these belongs to an external document.
-EXTERNAL = re.compile(r"(?:arc42|DPA|ISO|IEEE|RFC|SEI|AWS|MADR)\s*$", re.I)
-SECTION_REF = re.compile(r"(`?-0[123]`?\s*)?§\s*([0-9]+(?:\.[0-9]+){0,3})")
-RULE_REF = re.compile(r"(?:Rule\s+|\(|see\s+|per\s+)([A-Z]{1,2}-\d+)\b")
-# Register ids (C-01, QA-03) are zero-padded; rule ids (A-1, T-3) are not.
-REGISTER_PREFIXES = {"C", "K", "Q", "R", "I", "FF", "QA", "SLO", "SLI", "TB",
-                     "ADR", "TD", "P", "A"}
+SECTION_REF = re.compile(
+    r"(?:`?(?P<doc>LIMEN(?:-reference)?\.md)`?\s*)?§\s*(?P<ref>\d+(?:\.\d+){0,2})")
+RULE_REF = re.compile(r"\brules?\s+(\d+)\b", re.I)
+RULE_DEF = re.compile(r"^(\d+)\.\s+\*\*")
+FENCE = re.compile(r"^\s*(```|~~~)")
 
 
 def headings(text: str) -> set[str]:
-    """Every section number a `§` may legitimately point at."""
+    """Every section number a `§` may point at."""
     out: set[str] = set()
-    for m in re.finditer(r"^#{2,4}\s+([0-9]+(?:\.[0-9]+){0,2})[.\s]", text, re.M):
+    for m in re.finditer(r"^#{2,4}\s+(\d+(?:\.\d+){0,2})[.\s]", text, re.M):
         parts = m.group(1).split(".")
         for i in range(1, len(parts) + 1):
             out.add(".".join(parts[:i]))
     return out
 
 
-def rule_ids(text: str) -> set[str]:
-    """Rule and corollary definitions, in every form the standards use."""
-    out = set(re.findall(r"\*\*(?:Rule|Corollary)\s+([A-Z]{1,2}-\d+)", text))
-    # `- **D-1.** ...` and `- **V-14.** ...` keep the period inside the bold.
-    out |= set(re.findall(r"^\s*(?:[-*]\s+)?\*\*([A-Z]{1,2}-\d+)\.?\*\*", text, re.M))
-    return out
+def rule_count(core: str) -> int:
+    """Rules are the numbered bold items in the core's rules section."""
+    m = re.search(r"^## \d+\.\s+The (?:ten )?rules\s*$(.*?)(?=^## )", core, re.M | re.S)
+    if not m:
+        return 0
+    return max((int(r.group(1)) for line in m.group(1).splitlines()
+                if (r := RULE_DEF.match(line))), default=0)
 
 
 def run(directory: Path) -> int:
-    """Validate every internal section and rule citation. Returns an exit code."""
-    texts, missing_files = {}, []
-    for key, name in DOCS.items():
-        path = Path(directory) / name
+    directory = Path(directory)
+    texts: dict[str, str] = {}
+    for name in TARGETS + CITERS:
+        path = directory / name
         if path.exists():
-            texts[key] = path.read_text(encoding="utf-8")
-        else:
-            missing_files.append(name)
-    if missing_files:
-        print(f"limen xrefs: not found: {', '.join(missing_files)}", file=sys.stderr)
+            texts[name] = path.read_text(encoding="utf-8")
+    missing = [n for n in TARGETS if n not in texts]
+    if missing:
+        print(f"limen xrefs: not found: {', '.join(missing)}", file=sys.stderr)
         return 1
 
-    anchors = {k: headings(t) for k, t in texts.items()}
-    rules: set[str] = set()
-    for t in texts.values():
-        rules |= rule_ids(t)
-
+    anchors = {n: headings(texts[n]) for n in TARGETS}
+    rules = rule_count(texts[CORE])
     problems: list[tuple[str, int, str, str]] = []
-    for key, text in texts.items():
-        lines = text.splitlines()
-        for n, line in enumerate(lines, 1):
-            for m in SECTION_REF.finditer(line):
-                if EXTERNAL.search(line[:m.start()]):
-                    continue
-                prefix, ref = m.group(1), m.group(2)
-                target = re.sub(r"[`\s]", "", prefix) if prefix else key
-                if target in anchors and ref not in anchors[target]:
-                    problems.append((DOCS[key], n,
-                                     f"§{ref} does not exist in {DOCS[target]}",
-                                     line.strip()[:100]))
-        for m in RULE_REF.finditer(text):
-            rid = m.group(1)
-            head, num = rid.split("-")
-            if rid in rules or (head in REGISTER_PREFIXES and len(num) >= 2):
-                continue
-            n = text.count("\n", 0, m.start()) + 1
-            problems.append((DOCS[key], n, f"rule {rid} is never defined",
-                             lines[n - 1].strip()[:100]))
 
-    unique = sorted(set(problems))
-    for f, n, what, ctx in unique:
+    for name, text in texts.items():
+        in_fence = False
+        for n, line in enumerate(text.splitlines(), 1):
+            if FENCE.match(line):
+                in_fence = not in_fence
+            if in_fence:
+                continue
+            for m in SECTION_REF.finditer(line):
+                target = m.group("doc") or (name if name in TARGETS else None)
+                if target and m.group("ref") not in anchors[target]:
+                    problems.append((name, n, f"§{m.group('ref')} does not exist "
+                                              f"in {target}", line.strip()[:100]))
+            for m in RULE_REF.finditer(line):
+                if not 1 <= int(m.group(1)) <= rules:
+                    problems.append((name, n, f"rule {m.group(1)} does not exist "
+                                              f"({CORE} defines {rules})",
+                                     line.strip()[:100]))
+
+    for f, n, what, ctx in sorted(set(problems)):
         print(f"{f}:{n}\n    {what}\n    {ctx}\n")
     total = sum(len(a) for a in anchors.values())
-    print(f"{len(unique)} broken reference(s) across {len(texts)} documents "
-          f"({total} section anchors, {len(rules)} rules)")
-    return 1 if unique else 0
+    print(f"{len(set(problems))} broken reference(s) across {len(texts)} documents "
+          f"({total} section anchors, {rules} rules)")
+    return 1 if problems else 0

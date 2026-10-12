@@ -1,10 +1,11 @@
 """Fixture builders for the limen test suite.
 
-Two HLD document sets over one throwaway git repo:
+Three document sets over one throwaway git repo:
 
-  clean   satisfies all twelve gates
-  broken  seeds at least one violation of every gate, so a regression that
-          silences a check shows up as a test failure rather than a green run
+  clean   a 6.0 document that passes every check, including under --strict
+  broken  seeds at least one violation of every check, so a regression that
+          silences one shows up as a test failure rather than a green run
+  v5      a 5.x document, for `limen migrate` and `limen check --legacy`
 """
 from __future__ import annotations
 
@@ -13,7 +14,7 @@ import os
 import subprocess
 from pathlib import Path
 
-from limen.docset import normalize_block
+from limen import docset, lock
 
 # --------------------------------------------------------------------------
 # git repository
@@ -101,7 +102,7 @@ def build_repo(root: Path) -> tuple[str, str]:
 
 
 # --------------------------------------------------------------------------
-# diagrams and blocks
+# shared pieces
 # --------------------------------------------------------------------------
 
 L2_MERMAID = """graph TD
@@ -109,271 +110,33 @@ L2_MERMAID = """graph TD
     B --> C["object storage"]
 """
 
-L3_MERMAID = """graph LR
-    H["upload handler"] --> R["tenant repository"]
-"""
-
-INCONSISTENT_MERMAID = """graph TD
-    A["Ingest API"] --> B["queue"]
-"""
-
 BAD_MERMAID = """graph TD
     A[POST /v1/uploads (part)] --> B[worker
 """
 
-
-def agent_block(bid: str, body: str, tamper: bool = False, hashed: bool = True) -> str:
-    digest = "sha256:" + hashlib.sha256(
-        normalize_block("\n" + body + "\n").encode()).hexdigest()
-    if tamper:
-        digest = "sha256:" + "0" * 64
-    attrs = f'id="{bid}"' + (f' hash="{digest}"' if hashed else "")
-    return f'<!-- agent:begin {attrs} -->\n{body}\n<!-- agent:end id="{bid}" -->'
-
-
-# --------------------------------------------------------------------------
-# registers
-# --------------------------------------------------------------------------
-
-CLEAN_CONCERNS = """- id: C-01
-  stakeholder: Platform SRE
-  role: operates
-  concern: Determine which component caused an incident within 5 minutes.
-  priority: H
-  framed_by: [L1.4]
-- id: C-02
-  stakeholder: Tenant admin
-  role: uses
-  concern: Confirm my tenant's data is isolated from other tenants.
-  priority: H
-  framed_by: [L1.4]
-- id: C-03
-  stakeholder: Security review
-  role: audits
-  concern: Know what crosses a trust boundary unauthenticated.
-  priority: H
-  framed_by: [L1.9, L2.5]
-- id: C-04
-  stakeholder: Finance
-  role: funds
-  concern: Know what a marginal tenant costs per month.
-  priority: M
-  framed_by: [L1.6]
-- id: C-05
-  stakeholder: New engineer
-  role: builds
-  concern: Find where to add a new ingest format.
-  priority: M
-  framed_by: [L2.1, L2.2]
-"""
-
-CLEAN_CONSTRAINTS = """- id: K-01
-  class: legal
-  constraint: EU tenant data must not leave eu-west-1.
-  source: DPA section 7
-  negotiable: false
-- id: K-02
-  class: technical
-  constraint: Datastore must be Postgres (platform mandate).
-  source: Platform RFC-88
-  negotiable: false
-- id: K-03
-  class: organizational
-  constraint: Four engineers, no dedicated SRE.
-  source: Team charter
-  negotiable: false
-"""
-
-CLEAN_SCENARIOS = """- id: QA-01
-  attribute: availability
-  priority: { importance: H, difficulty: H }
-  source: Authenticated tenant client
-  stimulus: Submits an upload during a single-AZ failure
-  artifact: ingest-api write path
-  environment: Peak load, one availability zone unreachable
-  response: Upload is accepted and durably committed
-  response_measure: { success_rate_min: 0.995, window_minutes: 10 }
-  derived_slo: SLO-01
-  fitness_function: FF-02
-  traded_against: [QA-03]
-- id: QA-02
-  attribute: performance.latency
-  priority: { importance: H, difficulty: M }
-  source: Authenticated tenant client
-  stimulus: Submits a 24 MiB multipart upload
-  artifact: ingest-api write path
-  environment: Peak load, normal operation
-  response: Upload acknowledged and durably committed
-  response_measure: { p95_ms: 250, p99_ms: 900 }
-  derived_slo: SLO-02
-  fitness_function: FF-03
-- id: QA-03
-  attribute: cost
-  priority: { importance: M, difficulty: M }
-  source: Finance
-  stimulus: Tenant count doubles
-  artifact: whole system
-  environment: Steady state over one month
-  response: Marginal cost per tenant stays sublinear
-  response_measure: { cost_per_tenant_max_usd: 2.40 }
-- id: QA-04
-  attribute: modifiability
-  priority: { importance: M, difficulty: L }
-  source: Engineer
-  stimulus: Adds a new ingest format
-  artifact: format registry
-  environment: Development
-  response: No change to the transport layer
-  response_measure: { files_touched_max: 3 }
-- id: QA-05
-  attribute: security.isolation
-  priority: { importance: H, difficulty: H }
-  source: Compromised tenant credential
-  stimulus: Attempts to read another tenant's upload
-  artifact: repository layer
-  environment: Normal operation
-  response: Request is denied and audited
-  response_measure: { cross_tenant_reads_max: 0 }
-  derived_slo: SLO-03
-  fitness_function: FF-01
-  traded_against: [QA-02]
-"""
-
-CLEAN_QUESTIONS = """- id: Q-01
-  question: Is the 24 MiB part limit a protocol constraint or a tuned value?
-  matters_because: Determines whether the sizing bounds can be relaxed.
-  blocks: [L1.6]
-  owner: "@ingest-lead"
-  resolution_path: git blame internal/ingest/limits.go; ask the original author
-  status: open
-- id: Q-02
-  question: Which cache is actually deployed, Redis or Memcached?
-  matters_because: Affects the failure analysis for the read path.
-  blocks: [L2.1]
-  owner: "@platform"
-  resolution_path: Inspect the running configuration in eu-west-1
-  status: open
-- id: Q-03
-  question: Who owns pkg/legacy/replicator?
-  matters_because: Decides whether it can be decommissioned.
-  blocks: [L2.1]
-  owner: "@ingest-lead"
-  resolution_path: Check CODEOWNERS history
-  status: open
-"""
-
-# A pointer record: the decision lives in another file because the repo forbids
-# restating one fact in two places. Its prose is intentionally thin, so G12 must
-# judge it on `owned_by` plus the structural trade-off, not on its vocabulary.
-POINTER_ADR = """---
-id: ADR-012
-title: Keep both wasm variants in the deploy artifact
-status: accepted
-date: 2026-07-14
-deciders: ["@ingest-lead"]
-optimizes_for: [QA-05]
-sacrifices: [QA-02]
-affects_sections: [L2.5]
-record_type: pointer
-owned_by: decisions/variant-spike.md
----
-
-# ADR-012 - Keep both wasm variants
-
-> **Pointer record.** The evidence and rationale are owned by
-> `decisions/variant-spike.md` and are not restated here.
-
-**Outcome:** DEFER - no change landed.
-"""
-
-# Deliberately never says "option" or "alternative"; it weighs one anyway.
-POINTER_ADR_OWNER = """# Variant Bundle Spike
-
-## Question
-
-Does every browser download both variants, or does the loader fetch one?
-
-## Is dropping the second variant safe?
-
-Not provable in this timebox: no target-browser matrix exists.
-
-## Decision
-
-Defer. Revisit if a browser matrix is adopted.
-"""
-
-CLEAN_ADR = """---
+ADR_011 = """---
 id: ADR-011
 title: Derive tenant data keys per request rather than per session
 status: accepted
-date: 2026-07-14
-deciders: ["@ingest-lead", "@security"]
-optimizes_for: [QA-05]
-sacrifices: [QA-02]
-affects_sections: [L2.5]
 ---
 
 # ADR-011 - Derive tenant data keys per request
 
-## Context and problem statement
-
-Caching a derived key for a session reduces latency but widens the window in
-which a process holds key material for multiple tenants.
-
 ## Considered options
 
-### Option A - Per-request derivation (chosen)
-- Pros: key lifetime bounded by the request; no cache to operate.
-- Cons: adds latency; raises KMS request volume.
-
-### Option B - Per-session cached key with TTL
-- Pros: near-zero added latency.
-- Cons: multi-tenant key material co-resident in process memory.
-
-## Decision outcome
-
-Chosen: Option A. A leaked cross-tenant key cannot be un-leaked.
+- Per-request derivation (chosen): key lifetime bounded by the request.
+- Per-session cached key: near-zero added latency, but key material for many
+  tenants co-resident in one process.
 
 ## Consequences
 
-- Negative: consumes part of the latency budget in QA-02.
-- Revisit trigger: if KMS p99 exceeds 25 ms, re-open with envelope encryption.
+Consumes part of the latency budget in `QA-01`. Revisit if KMS p99 exceeds 25 ms.
 """
 
+# A decision record in a form limen does not inspect at all.
+ADR_012 = """# ADR-012: Keep both wasm variants
 
-def front_matter(baseline: str, *, version: str = "4.1.0", mode: str = "brownfield-asis",
-                 level: int = 2, counts: dict) -> str:
-    rows = "\n".join(f"  {k}: {v}" for k, v in counts.items())
-    return f"""---
-doc: hld
-id: HLD-ingest-platform
-title: Ingest Platform High-Level Design
-version: {version}
-status: draft
-mode: {mode}
-level: {level}
-profile: P2-product-service
-ungated: false
-adr_dir: adr
-repo:
-  url: https://example.invalid/acme/ingest
-  commit: {baseline}
-  short: {baseline[:7]}
-  dirty: false
-  inspected: full
-authors:
-  - {{ name: architecture-agent, kind: agent }}
-owners:
-  document: platform-team
-  system: ingest-team
-counts:
-{rows}
-changelog:
-  - version: {version}
-    date: 2026-09-15
-    trigger: provenance-drift
-    summary: Re-pinned baseline.
----
+Deferred; see the spike notes.
 """
 
 
@@ -383,243 +146,231 @@ def _write(root: Path, rel: str, body: str) -> None:
     path.write_text(body)
 
 
+def front_matter(baseline: str | None, mode: str = "brownfield",
+                 title: str = "Ingest Platform HLD") -> str:
+    base = f"baseline: {baseline}\n" if baseline else ""
+    return (f"---\ntitle: {title}\nmode: {mode}\n{base}version: 2.0.0\n"
+            "status: draft\nadr_dir: adr\n---\n")
+
+
+def stamp_all(root: Path, human: list[str] = ()) -> None:
+    lock.stamp(docset.load(root), new=True)
+    if human:
+        lock.stamp(docset.load(root), human=list(human))
+
+
 # --------------------------------------------------------------------------
 # clean document set
 # --------------------------------------------------------------------------
 
-def build_clean_docs(root: Path, baseline: str) -> None:
-    short = baseline[:7]
-    root.mkdir(parents=True, exist_ok=True)
+def clean_body(short: str) -> str:
+    return f"""
+# Ingest Platform HLD
 
-    _write(root, "registers/concerns.yaml", CLEAN_CONCERNS)
-    _write(root, "registers/constraints.yaml", CLEAN_CONSTRAINTS)
-    _write(root, "registers/quality-scenarios.yaml", CLEAN_SCENARIOS)
-    _write(root, "registers/open-questions.yaml", CLEAN_QUESTIONS)
-    _write(root, "adr/ADR-011-per-request-key-derivation.md", CLEAN_ADR)
-    _write(root, "adr/ADR-012-keep-both-variants.md", POINTER_ADR)
-    _write(root, "decisions/variant-spike.md", POINTER_ADR_OWNER)
+## Summary
 
-    intake_body = f"""### L1.4 Quality scenarios
-<!-- frames: C-01, C-02 -->
+The ingest platform accepts tenant uploads and stores them durably. Its one
+shaping decision derives keys per request and pays for it in latency (`ADR-011`).
 
-Scenarios `QA-01` through `QA-05` are registered, with the conflict set recorded
-as `traded_against` entries. Constraints `K-01`, `K-02` and `K-03` apply.
+## Quality priorities
 
-- Max part size `[T1]` (`internal/ingest/limits.go@{short}::MaxPartBytes` = 25165824).
-- Long-poll timeout `[T1]` (`internal/ingest/limits.go@{short}::pollTimeoutSeconds` = 30).
-- Ownership of the legacy replicator is undetermined `[T0]`, tracked as `Q-03`.
+| ID | Attribute | Scenario | Measure | Tier |
+| :--- | :--- | :--- | :--- | :--- |
+| `QA-01` | Latency | A tenant uploads a 24 MiB part at peak | p95 at most 250 ms | `[inferred]` |
 
-### L1.6 Sizing bounds
-<!-- frames: C-04 -->
+## Context and containers
 
-- Worker pool size `[T1]` (`internal/worker/pool.go@{short}::NewPool`).
-- Container resources `[T1]`
-  (`deploy/k8s/ingest.yaml@{short}::spec.template.spec.containers[0].resources`).
-- The part ceiling may be a tuned value rather than a protocol constraint `[T0]`,
-  tracked as `Q-01`.
-
-### L1.9 Container topology
-<!-- frames: C-03 -->
-
-The `ingest-api` container terminates tenant traffic and hands work to the
-`ingest-worker` container, which writes to object storage `[T2]`. Naming the
-`object
-storage` across a line break must still count as a prose mention.
-
-<!-- c4: level=2 -->
+The `ingest-api` container hands work to the `ingest-worker` container, which
+writes to object storage `[inferred]`.
 
 ```mermaid
 {L2_MERMAID}```
 
-### L1.10 Trade-off index
-<!-- frames: C-03 -->
+## Invariants
 
-| Dimension | Chosen | Rejected | Sacrifices | ADR | Tier |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| Key lifetime | Per-request derivation | Per-session cached key | `QA-02` | `ADR-011` | `[T1]` |
-"""
-
-    _write(root, "01-intake.md",
-           front_matter(baseline, counts={"concerns": 5, "constraints": 3,
-                                          "quality_scenarios": 5, "open_questions": 3})
-           + "\n# Ingest Platform HLD\n\n"
-           + agent_block("L1", intake_body)
-           + '\n\n<!-- human:begin id="L1.note" -->\n'
-             "Reviewer note: sizing re-checked 2026-09-01.\n"
-             '<!-- human:end id="L1.note" -->\n')
-
-    mechanics_body = f"""### L2.1 Components
-<!-- frames: C-05 -->
-
-Inside `ingest-api`, the `upload handler` delegates persistence to the
-`tenant repository` `[T2]`.
-
-- Upload entry point `[T1]` (`internal/ingest/handler.go@{short}::(*Handler).Upload`).
-- Handler constructor `[T1]` (`internal/ingest/handler.go@{short}::NewHandler`).
-- Which cache is deployed is unresolved `[T0]`, tracked as `Q-02`.
-
-<!-- c4: level=3 parent="ingest-api" -->
-
-```mermaid
-{L3_MERMAID}```
-
-### L2.2 Contracts
-<!-- frames: C-05 -->
-
-| ID | Contract | Auth | Provenance | Tier |
+| Invariant | Tier | Basis | Checked | Status |
 | :--- | :--- | :--- | :--- | :--- |
-| `I-01` | `POST /v1/uploads` | OIDC | `internal/ingest/handler.go@{short}::(*Handler).Upload` | `[T1]` |
+| A part is at most 24 MiB | `[verified]` | `internal/ingest/limits.go@{short}::MaxPartBytes` = 25165824 | Read the constant | `untested` |
 
-- Proposed: publish an OpenAPI document generated from the handlers `[T3]` —
-  owner @ingest-lead, trigger: when the first external SDK consumer appears.
+- The long-poll timeout is 30 s `[verified]`
+  (`internal/ingest/limits.go@{short}::pollTimeoutSeconds` = 30).
+- Workers come from one pool `[verified]` (`internal/worker/pool.go@{short}::NewPool`).
+- Container resources are capped `[verified]`
+  (`deploy/k8s/ingest.yaml@{short}::spec.template.spec.containers[0].resources`).
+- Uploads enter through one handler `[verified]`
+  (`internal/ingest/handler.go@{short}::(*Handler).Upload`), built by
+  `internal/ingest/handler.go@{short}::NewHandler`.
+- Every upload row carries a tenant `[verified]`
+  (`db/migrations/0042_add_tenant_id.sql@{short}::uploads`).
+- Keys are derived per request `[verified]`, as decided in `ADR-011`.
+- Tokens are JWTs per RFC 7519 `[verified]`.
 
-### L2.5 Threat model
-<!-- frames: C-03 -->
+## Key decisions
 
-Tenant isolation is enforced in the repository layer `[T2]`, and the schema
-carries a tenant column `[T1]`
-(`db/migrations/0042_add_tenant_id.sql@{short}::uploads`).
-
-| ID | SLI | Target | Window | Derived from | Tier |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| `SLO-01` | Upload success rate | 99.9% | 30 d | `QA-01` | `[T2]` |
-| `SLO-02` | Upload-ack p95 | 250 ms | 30 d | `QA-02` | `[T2]` |
-| `SLO-03` | Cross-tenant reads | 0 | 30 d | `QA-05` | `[T2]` |
-"""
-
-    _write(root, "02-mechanics.md",
-           "# L2 Mechanics\n\n" + agent_block("L2", mechanics_body) + "\n")
-
-
-# --------------------------------------------------------------------------
-# broken document set
-# --------------------------------------------------------------------------
-
-BROKEN_CONCERNS = """- id: C-01
-  stakeholder: Developer
-  role: builds
-  concern: Find where to add a format.
-  priority: M
-- id: C-02
-  stakeholder: Another developer
-  role: builds
-  concern: Understand the worker pool.
-  priority: M
-- id: C-07
-  stakeholder: Security review
-  role: audits
-  concern: Never framed by any section.
-  priority: H
-"""
-
-BROKEN_SCENARIOS = """- id: QA-01
-  attribute: performance
-  priority: { importance: H, difficulty: M }
-  source: Client
-  stimulus: Uploads a file
-  artifact: api
-  environment: Peak
-  response: Accepted quickly
-  response_measure: fast
-- id: QA-02
-  attribute: availability
-  priority: { importance: H, difficulty: H }
-  source: Client
-  stimulus: Uploads during an outage
-  artifact: api
-  environment: Degraded
-  response: Accepted
-"""
-
-BROKEN_QUESTIONS = """- id: Q-01
-  question: Is the part limit tuned?
-  status: open
-"""
-
-BROKEN_ADR = """# ADR-020 - No front matter here
-
-This decision record has no YAML front matter at all.
-"""
-
-
-def build_broken_docs(root: Path, baseline: str) -> None:
-    short = baseline[:7]
-    root.mkdir(parents=True, exist_ok=True)
-
-    _write(root, "registers/concerns.yaml", BROKEN_CONCERNS)
-    _write(root, "registers/quality-scenarios.yaml", BROKEN_SCENARIOS)
-    _write(root, "registers/open-questions.yaml", BROKEN_QUESTIONS)
-    _write(root, "adr/ADR-020-no-front-matter.md", BROKEN_ADR)
-
-    # G9: non-semver version, counts that do not match the registers.
-    fm = front_matter(baseline, version="4.1", mode="brownfield-change",
-                      counts={"concerns": 99, "constraints": 2,
-                              "quality_scenarios": 2, "open_questions": 1})
-
-    body = f"""### L1.4 Quality scenarios
-<!-- frames: C-01, C-99 -->
-
-G1 failures:
-
-- missing symbol `[T1]` (`internal/ingest/limits.go@{short}::NoSuchConstant`)
-- missing path `[T1]` (`internal/nope/gone.go@{short}::Thing`)
-- literal mismatch `[T1]` (`internal/ingest/limits.go@{short}::MaxPartBytes` = 999999)
-- mixed baseline `[T1]` (`internal/ingest/handler.go@deadbee::NewHandler`)
-- forbidden form: `file:///home/someone/repo/internal/ingest/limits.go#L4`
-
-G6: this claim has a pointer and no tier tag
-(`internal/worker/pool.go@{short}::NewPool`).
-
-G6: a [T1] claim is one read directly from the code.
-
-G6: **`[T3] Proposed:** shard the queue, owner @platform, trigger: backlog > 1h.
-
-G7: add per-region garbage collection `[T3]`.
-
-G8: the cache topology is undetermined `[T0]`.
-
-| Component | Provenance |
-| :--- | :--- |
-| worker | `internal/worker/pool.go@{short}::NewPool` |
-
-| Dimension | Chosen | Rejected |
-| :--- | :--- | :--- |
-| Key lifetime | Per-request | Per-session |
-
-| Dimension | Chosen | Rejected | Sacrifices | ADR |
+| Decision | Chosen | Sacrifices | ADR | Tier |
 | :--- | :--- | :--- | :--- | :--- |
-| Storage | Object store | Database blobs | | `ADR-999` |
+| Key lifetime | Per-request derivation | `QA-01` latency | `ADR-011` | `[verified]` |
+| Wasm variants | Keep both | Deploy size | `ADR-012` | `[verified]` |
 
-```mermaid
-{BAD_MERMAID}```
+## Risks and open questions
 
-This diagram is a deliberate example and must be skipped:
+- Publish an OpenAPI document generated from the handlers `[proposed]`, owner
+  @ingest-lead, trigger: the first external SDK consumer appears.
+- Whether the part ceiling is a protocol limit is undetermined `[unknown]`,
+  tracked as `Q-01`.
+- Which cache is deployed is undetermined `[unknown]`, see `Q-02`.
+
+| ID | Question | Owner | Resolution path |
+| :--- | :--- | :--- | :--- |
+| `Q-01` | Is the 24 MiB limit a protocol constraint or a tuned value? | @ingest-lead | git blame the constant |
+| `Q-02` | Is Redis or Memcached deployed? | @platform | Read the running config |
+
+This diagram is a deliberate example of what not to write, so it is skipped:
 
 <!-- limen:ignore-diagram -->
 
 ```mermaid
 {BAD_MERMAID}```
 
-### L2.1 Components
+## Reviewer notes
 
-This section declares no frames comment at all.
+Sizing re-checked by hand on 2026-09-01.
+"""
 
-The system handles uploads and writes them to storage.
+
+def build_clean_docs(root: Path, baseline: str) -> None:
+    root.mkdir(parents=True, exist_ok=True)
+    _write(root, "hld.md", front_matter(baseline) + clean_body(baseline[:7]))
+    _write(root, "adr/ADR-011-per-request-key-derivation.md", ADR_011)
+    _write(root, "adr/ADR-012-keep-both-variants.md", ADR_012)
+    stamp_all(root, human=["Reviewer notes"])
+
+
+# --------------------------------------------------------------------------
+# broken document set
+# --------------------------------------------------------------------------
+
+def build_broken_docs(root: Path, baseline: str) -> None:
+    short = baseline[:7]
+    root.mkdir(parents=True, exist_ok=True)
+    _write(root, "adr/ADR-011-per-request-key-derivation.md", ADR_011)
+
+    body = f"""
+# Broken HLD
+
+## Claims
+
+- missing symbol `[verified]` (`internal/ingest/limits.go@{short}::NoSuchConstant`)
+- missing path `[verified]` (`internal/nope/gone.go@{short}::Thing`)
+- literal mismatch `[verified]` (`internal/ingest/limits.go@{short}::MaxPartBytes` = 999999)
+- mixed baseline `[verified]` (`internal/ingest/handler.go@deadbee::NewHandler`)
+- forbidden form: `file:///home/someone/repo/internal/ingest/limits.go#L4`
+- whole file `[verified]` (`internal/ingest/limits.go@{short}`)
+- a verified claim with nothing behind it `[verified]`.
+
+## Honesty
+
+- the cache topology is undetermined `[unknown]`.
+- the shard count is undetermined `[unknown]`, tracked as `Q-07`.
+- add per-region garbage collection `[proposed]`.
+- shard the queue `[proposed]`, owner @platform, when needed.
+- a [verified] claim mentioned bare in prose.
+- **`[proposed] Proposed:`** a misplaced backtick, owner @platform, trigger: backlog over 1 h.
+- an old tag `[T1]` (`internal/worker/pool.go@{short}::NewPool`).
+
+## Decisions
+
+Storage follows `ADR-011`, and sharding follows `ADR-999`.
+
+```mermaid
+{BAD_MERMAID}```
+
+This one is a deliberate example and must be skipped:
+
+<!-- limen:ignore-diagram -->
+
+```mermaid
+{BAD_MERMAID}```
+
+## Edited later
+
+Original content.
+"""
+    _write(root, "hld.md", front_matter(baseline, title="Broken HLD") + body)
+    stamp_all(root)
+    hld = root / "hld.md"
+    hld.write_text(hld.read_text().replace("Original content.",
+                                           "Content a person rewrote after stamping."))
+
+
+# --------------------------------------------------------------------------
+# 5.x document set
+# --------------------------------------------------------------------------
+
+def agent_block(bid: str, body: str, tamper: bool = False) -> str:
+    """A 5.x agent block, hashed the way 5.x hashed it."""
+    digest = "sha256:" + hashlib.sha256(body.encode()).hexdigest()
+    if tamper:
+        digest = "sha256:" + "0" * 64
+    return f'<!-- agent:begin id="{bid}" hash="{digest}" -->\n{body}\n<!-- agent:end id="{bid}" -->'
+
+
+V5_QUESTIONS = """- id: Q-01
+  question: Who owns pkg/legacy/replicator?
+  owner: "@ingest-lead"
+  resolution_path: Check CODEOWNERS history
+  status: open
+"""
+
+
+def build_v5_docs(root: Path, baseline: str) -> None:
+    short = baseline[:7]
+    root.mkdir(parents=True, exist_ok=True)
+    _write(root, "registers/open-questions.yaml", V5_QUESTIONS)
+    _write(root, "adr/ADR-011-per-request-key-derivation.md", ADR_011)
+
+    l1 = f"""## L1.4 Quality scenarios
+<!-- frames: C-01 -->
+
+- Max part size `[T1]` (`internal/ingest/limits.go@{short}::MaxPartBytes` = 25165824).
+- Ownership of the legacy replicator is undetermined `[T0]`, tracked as `Q-01`.
+- Proposed: publish an OpenAPI document `[T3]`, owner @ingest-lead, trigger: the
+  first external consumer appears.
+- Tenancy is enforced in the repository layer `[T2]`.
 
 <!-- c4: level=2 -->
 
 ```mermaid
-{L2_MERMAID}```
+{L2_MERMAID}```"""
 
-<!-- c4: level=3 parent="nonexistent-container" -->
+    l2 = f"""## L2.1 Components
+<!-- frames: C-02 -->
 
-```mermaid
-{INCONSISTENT_MERMAID}```
+- Upload entry point `[T1]` (`internal/ingest/handler.go@{short}::(*Handler).Upload`),
+  per `ADR-011`."""
+
+    front = f"""---
+doc: hld
+id: HLD-ingest
+title: Ingest HLD
+version: 4.1.0
+status: draft
+mode: brownfield-change
+level: 2
+profile: P2-product-service
+adr_dir: adr
+repo:
+  url: https://example.invalid/acme/ingest
+  commit: {baseline}
+  short: {short}
+counts:
+  open_questions: 1
+---
 """
-
     _write(root, "01-intake.md",
-           fm + "\n# Broken HLD\n\n"
-           + agent_block("L1.4", body, tamper=True)
-           + "\n\n"
-           + agent_block("L2.1", "Unhashed agent block.", hashed=False)
-           + "\n")
+           front + "\n# Ingest HLD\n\n"
+           + agent_block("L1", l1) + "\n\n"
+           + agent_block("L2", l2, tamper=True) + "\n\n"
+           + '<!-- human:begin id="L2.note" -->\n## Reviewer notes\n\n'
+             "Sizing re-checked by hand.\n"
+             '<!-- human:end id="L2.note" -->\n')

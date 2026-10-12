@@ -1,10 +1,10 @@
-"""limen CLI — STD-LIMEN-03 §6.
+"""limen CLI (LIMEN.md §9).
 
 Exit codes:
-  0  all selected gates passed
-  1  a gate failed
+  0  every selected check passed
+  1  a check failed (or warned, under --strict)
   2  the validator could not run
-  3  gates passed but drift was detected against --at
+  3  checks passed but drift was detected against --at
 """
 from __future__ import annotations
 
@@ -12,82 +12,91 @@ import argparse
 import sys
 from pathlib import Path
 
-from . import __version__, docset, xrefs
-from .gates import (
-    g1_provenance, g2_diagrams, g3_consistency, g4_concerns, g5_scenarios,
-    g6_tiers, g7_proposals, g8_questions, g9_frontmatter, g10_blocks,
-    g11_mode, g12_adr,
-)
+from . import __version__, docset, lock, migrate, xrefs
+from .checks import decisions, diagrams, ownership, pointers, uncertainty
 from .gitio import Git
-from .model import FAIL, SKIP, WARN, CheckError, GateResult
+from .model import FAIL, SKIP, WARN, CheckError, CheckResult
 from .report import render_json, render_sarif, render_text
 
-IMPLEMENTED = ["G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8", "G9", "G10",
-               "G11", "G12"]
-PLANNED: list[str] = []
+CHECKS = ["pointers", "diagrams", "ownership", "uncertainty", "decisions"]
 
-EXIT_OK, EXIT_GATE_FAILURE, EXIT_ERROR, EXIT_DRIFT = 0, 1, 2, 3
+# 5.x gate ids, so existing CI invocations keep working for one minor version.
+GATE_ALIASES = {"G1": "pointers", "G2": "diagrams", "G6": "uncertainty",
+                "G7": "uncertainty", "G8": "uncertainty", "G9": "pointers",
+                "G10": "ownership", "G12": "decisions"}
+RETIRED_GATES = {"G3", "G4", "G5", "G11"}
 
+EXIT_OK, EXIT_FAILURE, EXIT_ERROR, EXIT_DRIFT = 0, 1, 2, 3
 
-SUBCOMMANDS = ("check", "stamp", "xrefs")
+SUBCOMMANDS = ("check", "stamp", "migrate", "xrefs")
 GLOBAL_FLAGS = ("-h", "--help", "--version")
 
 
-def _add_check_args(p: argparse.ArgumentParser) -> None:
+def _add_docs_arg(p: argparse.ArgumentParser) -> None:
     p.add_argument("--docs", default="docs/architecture", type=Path,
                    help="HLD directory or single markdown file "
                         "(default: docs/architecture)")
-    p.add_argument("--repo", default=".", type=Path,
-                   help="git repository the provenance pointers refer to (default: .)")
-    p.add_argument("--at", metavar="REV",
-                   help="also resolve pointers at this revision and report drift")
-    p.add_argument("--gates", metavar="LIST",
-                   help=f"comma-separated subset, e.g. G1,G9 "
-                        f"(default: {','.join(IMPLEMENTED)})")
-    p.add_argument("--strict", action="store_true",
-                   help="treat partial/advisory findings as failures")
-    p.add_argument("--format", choices=("text", "json", "sarif"), default="text")
-    p.add_argument("-v", "--verbose", action="store_true",
-                   help="show passing checks in text output")
-    p.add_argument("--min-resolution", type=float,
-                   default=g1_provenance.DEFAULT_MIN_RESOLUTION,
-                   help="G1 resolution threshold (default: 0.95)")
-    p.add_argument("--mmdc", metavar="CMD",
-                   help="mermaid-cli command override (also read from $MMDC)")
-    p.add_argument("--no-cache", action="store_true",
-                   help="ignore the diagram render cache")
-    p.add_argument("--jobs", type=int, default=4,
-                   help="parallel diagram renders (default: 4)")
-    p.add_argument("--timeout", type=int, default=120,
-                   help="per-diagram render timeout in seconds (default: 120)")
 
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="limen",
-        description="Validate an HLD document set against STD-LIMEN-03 hard gates.",
-        epilog=f"Gates: {', '.join(IMPLEMENTED)}. "
-               f"`limen` with no subcommand runs `limen check`.",
+        description="Check an HLD written to the Limen standard (LIMEN.md).",
+        epilog=f"Checks: {', '.join(CHECKS)}. "
+               "`limen` with no subcommand runs `limen check`.",
     )
     p.add_argument("--version", action="version", version=f"limen {__version__}")
     subs = p.add_subparsers(dest="command")
 
-    check = subs.add_parser("check", help="run the hard gates against a document set")
-    _add_check_args(check)
+    check = subs.add_parser("check", help="run the checks against a document set")
+    _add_docs_arg(check)
+    check.add_argument("--repo", default=".", type=Path,
+                       help="git repository the pointers refer to (default: .)")
+    check.add_argument("--at", metavar="REV",
+                       help="also resolve pointers at this revision and report drift")
+    check.add_argument("--checks", metavar="LIST",
+                       help=f"comma-separated subset (default: {','.join(CHECKS)})")
+    check.add_argument("--gates", metavar="LIST", help=argparse.SUPPRESS)
+    check.add_argument("--strict", action="store_true",
+                       help="treat warnings as failures")
+    check.add_argument("--legacy", action="store_true",
+                       help="read a 5.x document: old tags, modes, front matter and "
+                            "ownership markers")
+    check.add_argument("--format", choices=("text", "json", "sarif"), default="text")
+    check.add_argument("-v", "--verbose", action="store_true",
+                       help="show passing items in text output")
+    check.add_argument("--mmdc", metavar="CMD",
+                       help="mermaid-cli command override (also read from $MMDC)")
+    check.add_argument("--no-cache", action="store_true",
+                       help="ignore the diagram render cache")
+    check.add_argument("--jobs", type=int, default=4,
+                       help="parallel diagram renders (default: 4)")
+    check.add_argument("--timeout", type=int, default=120,
+                       help="per-diagram render timeout in seconds (default: 120)")
 
     stamp = subs.add_parser(
-        "stamp",
-        help="recompute agent:begin block hashes in place",
-        description="Run this immediately after authoring agent blocks — never to "
-                    "clear a G10 mismatch, which would destroy the human edit the "
-                    "mismatch is reporting (STD-LIMEN-01 U-2).")
-    stamp.add_argument("--docs", default="docs/architecture", type=Path,
-                       help="HLD directory or single markdown file")
+        "stamp", help="record who wrote which sections, in .limen-lock.yaml",
+        description="Attribute sections in .limen-lock.yaml. Claim only sections "
+                    "you wrote in this run: a section a person changed is theirs "
+                    "(LIMEN.md §8.3). Headings are given exactly as written, as "
+                    "'Heading' or 'file.md#Heading'.")
+    _add_docs_arg(stamp)
+    stamp.add_argument("--all", dest="new", action="store_true",
+                       help="record every section of a newly written document as "
+                            "the agent's")
+    stamp.add_argument("--mine", action="append", default=[], metavar="HEADING",
+                       help="a section the agent wrote or edited in this run")
+    stamp.add_argument("--human", action="append", default=[], metavar="HEADING",
+                       help="a section a person owns; agents stop editing it")
 
-    xr = subs.add_parser("xrefs",
-                         help="validate internal cross-references in the standards")
+    mig = subs.add_parser("migrate", help="convert a 5.x document set to 6.0, in place")
+    _add_docs_arg(mig)
+    mig.add_argument("--dry-run", action="store_true",
+                     help="report what would change without writing")
+
+    xr = subs.add_parser("xrefs", help="validate section references in the standard")
     xr.add_argument("--dir", default=".", type=Path,
-                    help="directory holding the three STD-LIMEN documents")
+                    help="directory holding LIMEN.md (default: .)")
     return p
 
 
@@ -100,18 +109,32 @@ def normalize_argv(argv: list[str]) -> list[str]:
     return ["check", *argv]
 
 
-def select(requested: str | None) -> list[str]:
-    if not requested:
-        return list(IMPLEMENTED)
-    wanted = [g.strip().upper() for g in requested.split(",") if g.strip()]
-    unknown = [g for g in wanted if g not in IMPLEMENTED + PLANNED]
-    if unknown:
-        raise CheckError(f"unknown gate(s): {', '.join(unknown)}")
-    not_yet = [g for g in wanted if g in PLANNED]
-    if not_yet:
-        print(f"note: {', '.join(not_yet)} not implemented yet; skipping",
-              file=sys.stderr)
-    return [g for g in wanted if g in IMPLEMENTED]
+def select(checks: str | None, gates: str | None) -> list[str]:
+    if not checks and not gates:
+        return list(CHECKS)
+    wanted: list[str] = []
+    for raw in (checks or "").split(","):
+        if name := raw.strip().lower():
+            if name not in CHECKS:
+                raise CheckError(f"unknown check '{name}'; expected one of "
+                                 f"{', '.join(CHECKS)}")
+            wanted.append(name)
+    retired: list[str] = []
+    for raw in (gates or "").split(","):
+        if gid := raw.strip().upper():
+            if gid in RETIRED_GATES:
+                retired.append(gid)
+            elif gid in GATE_ALIASES:
+                wanted.append(GATE_ALIASES[gid])
+            else:
+                raise CheckError(f"unknown gate '{gid}'")
+    if retired:
+        print(f"limen: {', '.join(retired)} retired in 6.0; nothing runs in "
+              "their place", file=sys.stderr)
+    selected = [c for c in CHECKS if c in wanted]
+    if not selected:
+        raise CheckError("nothing to run")
+    return selected
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -128,98 +151,114 @@ def main(argv: list[str] | None = None) -> int:
         return EXIT_ERROR
 
     if args.command == "stamp":
-        changed = g10_blocks.stamp(docs)
-        for line in changed:
-            print(f"stamped {line}")
-        print(f"{len(changed)} agent block hash(es) updated.")
-        return EXIT_OK
+        return _stamp(docs, args)
+    if args.command == "migrate":
+        return _migrate(docs, args)
+    return _check(docs, args)
 
+
+def _stamp(docs: docset.DocSet, args) -> int:
+    if not (args.new or args.mine or args.human):
+        print("limen stamp: say whose sections these are: --all for a document you "
+              "just wrote, --mine HEADING for sections you edited in this run, "
+              "--human HEADING for a person's", file=sys.stderr)
+        return EXIT_ERROR
     try:
-        selected = select(args.gates)
+        changes = lock.stamp(docs, mine=args.mine, human=args.human, new=args.new)
+    except lock.StampError as exc:
+        print(f"limen stamp: {exc}", file=sys.stderr)
+        return EXIT_FAILURE
+    for line in changes:
+        print(line)
+    return EXIT_OK
+
+
+def _migrate(docs: docset.DocSet, args) -> int:
+    notes = migrate.migrate(docs, write=not args.dry_run)
+    if not notes:
+        print("nothing to migrate: no 5.x forms found")
+        return EXIT_OK
+    for line in notes:
+        print(("would: " if args.dry_run and line.startswith(("rewrote", "wrote"))
+               else "") + line)
+    if not args.dry_run:
+        print("\nnext: run `limen check` and fix what it reports")
+    return EXIT_OK
+
+
+def _check(docs: docset.DocSet, args) -> int:
+    try:
+        selected = select(args.checks, args.gates)
     except CheckError as exc:
         print(f"limen: {exc}", file=sys.stderr)
         return EXIT_ERROR
 
+    notes: list[str] = []
+    if args.legacy:
+        notes = migrate.legacy_view(docs)
+
     git: Git | None = None
-    if {"G1", "G9"} & set(selected):
+    if "pointers" in selected:
         try:
             git = Git(args.repo)
         except CheckError as exc:
-            if "G1" in selected:
-                print(f"limen: {exc}", file=sys.stderr)
-                return EXIT_ERROR
-            print(f"limen: {exc} (G9 repo checks reduced)", file=sys.stderr)
+            print(f"limen: {exc}", file=sys.stderr)
+            return EXIT_ERROR
 
-    gates: list[GateResult] = []
+    results: list[CheckResult] = []
     drift = {"resolved": 0, "moved": 0, "missing": 0, "value_changed": 0}
+    try:
+        for name in selected:
+            if name == "pointers":
+                result, drift = pointers.run(docs, git, at=args.at, strict=args.strict)
+            elif name == "diagrams":
+                result = diagrams.run(docs, mmdc=args.mmdc, strict=args.strict,
+                                      use_cache=not args.no_cache, jobs=args.jobs,
+                                      timeout=args.timeout)
+            elif name == "ownership":
+                result = ownership.run(docs, strict=args.strict)
+            elif name == "uncertainty":
+                result = uncertainty.run(docs, strict=args.strict)
+            else:
+                result = decisions.run(docs, strict=args.strict)
+            results.append(result)
+    except CheckError as exc:
+        print(f"limen: {exc}", file=sys.stderr)
+        return EXIT_ERROR
 
-    if "G9" in selected:
-        gates.append(g9_frontmatter.run(docs, git, strict=args.strict))
-    if "G1" in selected:
-        if git is None:
-            gates.append(GateResult("G1", "Provenance resolves").skip("no repository"))
-        else:
-            gate, drift = g1_provenance.run(
-                docs, git, at=args.at, min_resolution=args.min_resolution,
-                strict=args.strict)
-            gates.append(gate)
-    if "G2" in selected:
-        gates.append(g2_diagrams.run(docs, mmdc=args.mmdc, strict=args.strict,
-                                     use_cache=not args.no_cache, jobs=args.jobs,
-                                     timeout=args.timeout))
-    if "G3" in selected:
-        gates.append(g3_consistency.run(docs, strict=args.strict))
-    if "G4" in selected:
-        gates.append(g4_concerns.run(docs, strict=args.strict))
-    if "G5" in selected:
-        gates.append(g5_scenarios.run(docs, strict=args.strict))
-    if "G6" in selected:
-        gates.append(g6_tiers.run(docs, strict=args.strict))
-    if "G7" in selected:
-        gates.append(g7_proposals.run(docs, strict=args.strict))
-    if "G8" in selected:
-        gates.append(g8_questions.run(docs, strict=args.strict))
-    if "G10" in selected:
-        gates.append(g10_blocks.run(docs, strict=args.strict))
-    if "G11" in selected:
-        gates.append(g11_mode.run(docs, strict=args.strict))
-    if "G12" in selected:
-        gates.append(g12_adr.run(docs, strict=args.strict))
-
-    repo_front = docs.front.get("repo") or {}
     evaluated = None
     if args.at and git is not None:
         evaluated = git.rev_parse(args.at) or args.at
 
     payload = {
-        "doc": docs.front.get("id", "(unknown)"),
-        "version": docs.front.get("version", "0.0.0"),
-        "baseline": str(repo_front.get("commit", "")) or "(none)",
-        "evaluated_at": evaluated or str(repo_front.get("commit", "")) or "(none)",
-        "profile": docs.front.get("profile"),
-        "mode": docs.front.get("mode"),
-        "gates": [g.to_dict(include_passing=args.verbose) for g in gates],
+        "doc": str(docs.front.get("title") or docs.front.get("id") or "(untitled)"),
+        "version": str(docs.front.get("version") or "0.0.0"),
+        "mode": docs.mode or None,
+        "baseline": docs.baseline or "(none)",
+        "evaluated_at": evaluated or docs.baseline or "(none)",
+        "legacy": args.legacy,
+        "notes": notes,
+        "checks": [r.to_dict(include_passing=args.verbose) for r in results],
         "drift": drift,
-        "skipped_gates": [g for g in PLANNED if not args.gates],
         "summary": {
-            "passed": sum(1 for g in gates if g.status == "pass"),
-            "failed": sum(1 for g in gates if g.status == FAIL),
-            "warned": sum(1 for g in gates if g.status == WARN),
-            "skipped": sum(1 for g in gates if g.status == SKIP),
+            "passed": sum(1 for r in results if r.status == "pass"),
+            "failed": sum(1 for r in results if r.status == FAIL),
+            "warned": sum(1 for r in results if r.status == WARN),
+            "skipped": sum(1 for r in results if r.status == SKIP),
         },
     }
 
     if args.format == "json":
         render_json(payload)
     elif args.format == "sarif":
-        render_sarif(payload, gates)
+        render_sarif(payload, results)
     else:
-        render_text(payload, gates, verbose=args.verbose)
+        render_text(payload, results, verbose=args.verbose)
 
-    if any(g.status == FAIL for g in gates):
-        return EXIT_GATE_FAILURE
-    if args.strict and any(g.status == WARN for g in gates):
-        return EXIT_GATE_FAILURE
+    if any(r.status == FAIL for r in results):
+        return EXIT_FAILURE
+    if args.strict and any(r.status == WARN for r in results):
+        return EXIT_FAILURE
     if any(drift[k] for k in ("moved", "missing", "value_changed")):
         return EXIT_DRIFT
     return EXIT_OK
